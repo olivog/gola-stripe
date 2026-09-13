@@ -5,6 +5,8 @@ using System.Web.Mvc;
 using Stripe;
 using Stripe.Checkout;
 using GolaStripe.Helpers;
+using System.IO;
+
 
 namespace GolaStripe.Controllers
 {
@@ -106,6 +108,86 @@ namespace GolaStripe.Controllers
         public ActionResult Cancel()
         {
             return View();
+        }
+        [HttpPost]
+        public ActionResult StripeWebhook()
+        {
+            var json = new StreamReader(Request.InputStream).ReadToEnd();
+            var signature = Request.Headers["Stripe-Signature"];
+            var whsec = ConfigurationManager.AppSettings["StripeWebhookSecret"];
+
+            Event stripeEvent;
+            try
+            {
+                stripeEvent = EventUtility.ConstructEvent(json, signature, whsec);
+            }
+            catch (Exception)
+            {
+                return new HttpStatusCodeResult(400);
+            }
+
+            long webhookEventId;
+            var isNew = GolaPayDb.TryBeginWebhookEvent(
+                stripeEvent.Id,
+                stripeEvent.Type,
+                stripeEvent.Livemode,
+                json,
+                out webhookEventId);
+
+            if (!isNew)
+                return new HttpStatusCodeResult(200);
+
+            try
+            {
+                if (stripeEvent.Type == "checkout.session.completed")//Events.CheckoutSessionCompleted)
+                {
+                    var session = stripeEvent.Data.Object as Session;
+                    long? orderId = null;
+
+                    if (session.Metadata != null && session.Metadata.ContainsKey("order_id"))
+                        orderId = long.Parse(session.Metadata["order_id"]);
+                    else if (!string.IsNullOrEmpty(session.ClientReferenceId))
+                        orderId = GolaPayDb.FindOrderIdByPublicOrderId(Guid.Parse(session.ClientReferenceId));
+                    else
+                        orderId = GolaPayDb.FindOrderIdBySessionId(session.Id);
+
+                    if (orderId == null)
+                    {
+                        GolaPayDb.CompleteWebhookEvent(webhookEventId, null, "Failed", "Order not found");
+                        return new HttpStatusCodeResult(200);
+                    }
+
+                    var amountDollars = Money.FromCents((int)(session.AmountTotal ?? 0));
+
+                    string pmType = null;
+                    if (session.PaymentMethodTypes != null && session.PaymentMethodTypes.Count > 0)
+                        pmType = session.PaymentMethodTypes[0];
+
+                    GolaPayDb.MarkOrderPaidFromCheckoutSession(
+                        orderId.Value,
+                        session.PaymentIntentId,
+                        session.CustomerEmail ?? (session.CustomerDetails != null ? session.CustomerDetails.Email : null),
+                        session.CustomerDetails != null ? session.CustomerDetails.Name : null,
+                        session.CustomerId,
+                        pmType,
+                        null,
+                        null,
+                        null,
+                        amountDollars);
+
+                    GolaPayDb.CompleteWebhookEvent(webhookEventId, orderId, "Processed", null);
+                }
+                else
+                {
+                    GolaPayDb.CompleteWebhookEvent(webhookEventId, null, "Ignored", null);
+                }
+            }
+            catch (Exception ex)
+            {
+                GolaPayDb.CompleteWebhookEvent(webhookEventId, null, "Failed", ex.Message);
+            }
+
+            return new HttpStatusCodeResult(200);
         }
     }
 }
