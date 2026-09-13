@@ -1,0 +1,22 @@
+﻿@{
+    ViewBag.Title = "Pago exitoso";
+}
+
+<h1>Pago exitoso</h1>
+<p class="ok">Stripe Checkout completó el flujo.</p>
+
+@if (!string.IsNullOrEmpty(ViewBag.Error as string))
+{
+    <p>No se pudo leer la sesión: @ViewBag.Error</p>
+}
+else
+{
+    <p>Session: <code>@ViewBag.SessionId</code></p>
+    <p>PaymentStatus: <strong>@ViewBag.PaymentStatus</strong></p>
+    if (ViewBag.AmountTotal != null)
+    {
+        <p>Monto: $@(((long)ViewBag.AmountTotal) / 100.0)</p>
+    }
+}
+
+<p><a href="@Url.Action("Index", "Home")">Volver al inicio</a></p>

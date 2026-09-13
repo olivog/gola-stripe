@@ -4,4 +4,10 @@
 
 <h1>@ViewBag.Message</h1>
 <p class="ok">El esqueleto MVC5 está corriendo en VS2019.</p>
-<p>Siguiente ciclo: Stripe Checkout (modo test).</p>
+
+<p>
+    <a href="@Url.Action("CreateCheckout", "Payments")"
+       style="display:inline-block;padding:.75rem 1.25rem;background:#38bdf8;color:#0f172a;text-decoration:none;border-radius:.5rem;font-weight:600;">
+        Pagar $10 (test)
+    </a>
+</p>
