@@ -4,6 +4,7 @@ using System.Configuration;
 using System.Web.Mvc;
 using Stripe;
 using Stripe.Checkout;
+using GolaStripe.Helpers;
 
 namespace GolaStripe.Controllers
 {
@@ -25,6 +26,20 @@ namespace GolaStripe.Controllers
         {
             EnsureStripeApiKey();
 
+            const int amountCents = 1000; // $10.00
+            const string currency = "usd";
+            const string itemName = "Prueba Gola Stripe";
+            const int qty = 1;
+
+            // 1) Pedido Pending en GolaPay
+            var sourceAppId = GolaPayDb.GetSourceAppId("stripe"); // seed SourceApps
+            long orderId;
+            Guid publicOrderId;
+            GolaPayDb.CreatePendingOrder(
+                sourceAppId, amountCents, currency, itemName, qty,
+                out orderId, out publicOrderId);
+
+            // 2) Checkout Session con metadata para el webhook (paso 3)
             var domain = Request.Url.GetLeftPart(UriPartial.Authority);
 
             var options = new SessionCreateOptions
@@ -32,26 +47,35 @@ namespace GolaStripe.Controllers
                 Mode = "payment",
                 SuccessUrl = domain + "/Payments/Success?session_id={CHECKOUT_SESSION_ID}",
                 CancelUrl = domain + "/Payments/Cancel",
+                ClientReferenceId = publicOrderId.ToString(),
+                Metadata = new Dictionary<string, string>
+        {
+            { "order_id", orderId.ToString() },
+            { "public_order_id", publicOrderId.ToString() },
+            { "source_app", "stripe" }
+        },
                 LineItems = new List<SessionLineItemOptions>
+        {
+            new SessionLineItemOptions
+            {
+                Quantity = qty,
+                PriceData = new SessionLineItemPriceDataOptions
                 {
-                    new SessionLineItemOptions
+                    Currency = currency,
+                    UnitAmount = amountCents,
+                    ProductData = new SessionLineItemPriceDataProductDataOptions
                     {
-                        Quantity = 1,
-                        PriceData = new SessionLineItemPriceDataOptions
-                        {
-                            Currency = "usd",
-                            UnitAmount = 1000, // $10.00
-                            ProductData = new SessionLineItemPriceDataProductDataOptions
-                            {
-                                Name = "Prueba Gola Stripe"
-                            }
-                        }
+                        Name = itemName
                     }
                 }
+            }
+        }
             };
 
-            var service = new SessionService();
-            Session session = service.Create(options);
+            var session = new SessionService().Create(options);
+
+            // 3) Guardar cs_... en la orden
+            GolaPayDb.SetStripeSessionId(orderId, session.Id);
 
             return Redirect(session.Url);
         }
