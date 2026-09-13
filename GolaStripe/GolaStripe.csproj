@@ -144,6 +144,8 @@
     <None Include="Web.Release.config">
       <DependentUpon>Web.config</DependentUpon>
     </None>
+    <None Include="Web.secrets.config" />
+    <None Include="Web.secrets.config.example" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Models\" />

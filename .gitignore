@@ -24,3 +24,7 @@ Web.config.local
 appsettings.*.local.json
 *.pfx
 .env
+
+# Stripe / secrets locales
+GolaStripe/Web.secrets.config
+**/Web.secrets.config
