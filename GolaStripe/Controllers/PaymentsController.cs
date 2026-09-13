@@ -26,18 +26,17 @@ namespace GolaStripe.Controllers
         {
             EnsureStripeApiKey();
 
-            const int amountCents = 1000; // $10.00
+            const decimal amountDollars = 10.00m; // o 10.50m
             const string currency = "usd";
             const string itemName = "Prueba Gola Stripe";
             const int qty = 1;
-
-            // 1) Pedido Pending en GolaPay
-            var sourceAppId = GolaPayDb.GetSourceAppId("stripe"); // seed SourceApps
+            var sourceAppId = GolaPayDb.GetSourceAppId("stripe");
             long orderId;
             Guid publicOrderId;
             GolaPayDb.CreatePendingOrder(
-                sourceAppId, amountCents, currency, itemName, qty,
+                sourceAppId, amountDollars, currency, itemName, qty,
                 out orderId, out publicOrderId);
+            int amountCents = Money.ToCents(amountDollars);
 
             // 2) Checkout Session con metadata para el webhook (paso 3)
             var domain = Request.Url.GetLeftPart(UriPartial.Authority);

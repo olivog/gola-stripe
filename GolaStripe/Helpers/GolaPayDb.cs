@@ -36,7 +36,7 @@ namespace GolaStripe.Helpers
         /// <summary>Crea Order Pending + 1 OrderItem. Devuelve OrderId y PublicOrderId.</summary>
         public static void CreatePendingOrder(
             int sourceAppId,
-            int amountTotalCents,
+            decimal amountTotalDollars,   // ej. 10.00m o 10.50m
             string currency,
             string itemName,
             int quantity,
@@ -63,7 +63,7 @@ VALUES
                     {
                         cmd.Parameters.Add("@sourceAppId", SqlDbType.Int).Value = sourceAppId;
                         cmd.Parameters.Add("@currency", SqlDbType.Char, 3).Value = currency.ToLowerInvariant();
-                        cmd.Parameters.Add("@amountTotal", SqlDbType.Int).Value = amountTotalCents;
+                        cmd.Parameters.Add("@amountTotal", SqlDbType.Decimal).Value = amountTotalDollars;
                         cmd.Parameters.Add("@metadata", SqlDbType.NVarChar, -1).Value =
                             "{\"origin\":\"gola-stripe\",\"product\":\"" + itemName.Replace("\"", "") + "\"}";
 
@@ -83,7 +83,8 @@ VALUES (@orderId, @name, @qty, @unitAmount, @currency);", conn, tx))
                         cmd.Parameters.Add("@orderId", SqlDbType.BigInt).Value = newOrderId;
                         cmd.Parameters.Add("@name", SqlDbType.VarChar, 200).Value = itemName;
                         cmd.Parameters.Add("@qty", SqlDbType.Int).Value = quantity;
-                        cmd.Parameters.Add("@unitAmount", SqlDbType.Int).Value = amountTotalCents / quantity;
+                        cmd.Parameters.Add("@unitAmount", SqlDbType.Decimal).Value =
+                            Math.Round(amountTotalDollars / quantity, 2, MidpointRounding.AwayFromZero);
                         cmd.Parameters.Add("@currency", SqlDbType.Char, 3).Value = currency.ToLowerInvariant();
                         cmd.ExecuteNonQuery();
                     }
