@@ -119,7 +119,8 @@ namespace GolaStripe.Controllers
             Event stripeEvent;
             try
             {
-                stripeEvent = EventUtility.ConstructEvent(json, signature, whsec);
+                stripeEvent = EventUtility.ConstructEvent(
+                    json, signature, whsec, tolerance: 300, throwOnApiVersionMismatch: false);
             }
             catch (Exception)
             {

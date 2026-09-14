@@ -28,3 +28,4 @@ appsettings.*.local.json
 # Stripe / secrets locales
 GolaStripe/Web.secrets.config
 **/Web.secrets.config
+/GolaStripe/Properties/PublishProfiles
