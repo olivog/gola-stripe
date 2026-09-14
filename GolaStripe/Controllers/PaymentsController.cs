@@ -241,6 +241,25 @@ namespace GolaStripe.Controllers
                                 cardLast4 = pm.Card.Last4;
                             }
                         }
+                        if (cardLast4 == null)
+                        {
+                            var chargeId = pi.LatestChargeId;
+                            if (string.IsNullOrEmpty(chargeId) && pi.LatestCharge != null)
+                                chargeId = pi.LatestCharge.Id;
+
+                            if (!string.IsNullOrEmpty(chargeId))
+                            {
+                                var charge = new ChargeService().Get(chargeId);
+                                if (charge.PaymentMethodDetails != null
+                                    && charge.PaymentMethodDetails.Card != null)
+                                {
+                                    cardBrand = charge.PaymentMethodDetails.Card.Brand;
+                                    cardLast4 = charge.PaymentMethodDetails.Card.Last4;
+                                }
+                                if (string.IsNullOrEmpty(pmType) && charge.PaymentMethodDetails != null)
+                                    pmType = charge.PaymentMethodDetails.Type;
+                            }
+                        }
                     }
 
                     GolaPayDb.MarkOrderPaidFromCheckoutSession(
@@ -255,7 +274,16 @@ namespace GolaStripe.Controllers
                         null,
                         amountDollars);
 
-                    GolaPayDb.CompleteWebhookEvent(webhookEventId, orderId, "Processed", null);
+                    if (cardLast4 == null)
+                    {
+                        GolaPayDb.CompleteWebhookEvent(
+                            webhookEventId, orderId, "Processed",
+                            "Paid OK pero sin CardLast4 (PI=" + session.PaymentIntentId + ")");
+                    }
+                    else
+                    {
+                        GolaPayDb.CompleteWebhookEvent(webhookEventId, orderId, "Processed", null);
+                    }
                 }
                 else
                 {
