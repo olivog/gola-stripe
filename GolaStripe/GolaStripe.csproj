@@ -143,6 +143,7 @@
     <None Include="packages.config" />
     <Content Include="Views\Payments\Success.cshtml" />
     <Content Include="Views\Payments\Cancel.cshtml" />
+    <Content Include="Views\Payments\New.cshtml" />
     <None Include="Web.Debug.config">
       <DependentUpon>Web.config</DependentUpon>
     </None>

@@ -23,24 +23,66 @@ namespace GolaStripe.Controllers
             StripeConfiguration.ApiKey = sk;
         }
 
-        // GET /Payments/CreateCheckout
+        // GET /Payments/New
+        [HttpGet]
+        public ActionResult New()
+        {
+            ViewBag.ProductName = "";
+            ViewBag.AmountDollars = "10.00";
+            return View();
+        }
+
+        // GET viejo → manda al form
+        [HttpGet]
         public ActionResult CreateCheckout()
         {
+            return RedirectToAction("New");
+        }
+
+        // POST /Payments/CreateCheckout
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult CreateCheckout(string productName, string amountDollars)
+        {
+            productName = (productName ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(productName) || productName.Length > 200)
+            {
+                ViewBag.Error = "Escribe un nombre de producto (máx. 200).";
+                ViewBag.ProductName = productName;
+                ViewBag.AmountDollars = amountDollars;
+                return View("New");
+            }
+
+            decimal amount;
+            if (!decimal.TryParse(
+                    (amountDollars ?? "").Trim().Replace(',', '.'),
+                    System.Globalization.NumberStyles.Number,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out amount)
+                || amount < 0.50m
+                || amount > 99999.99m)
+            {
+                ViewBag.Error = "Precio inválido. Usa entre 0.50 y 99999.99 USD.";
+                ViewBag.ProductName = productName;
+                ViewBag.AmountDollars = amountDollars;
+                return View("New");
+            }
+
+            // Stripe cobra en centavos: redondea a 2 decimales
+            amount = Math.Round(amount, 2, MidpointRounding.AwayFromZero);
+
             EnsureStripeApiKey();
 
-            const decimal amountDollars = 10.00m; // o 10.50m
             const string currency = "usd";
-            const string itemName = "Prueba Gola Stripe";
             const int qty = 1;
             var sourceAppId = GolaPayDb.GetSourceAppId("stripe");
             long orderId;
             Guid publicOrderId;
             GolaPayDb.CreatePendingOrder(
-                sourceAppId, amountDollars, currency, itemName, qty,
+                sourceAppId, amount, currency, productName, qty,
                 out orderId, out publicOrderId);
-            int amountCents = Money.ToCents(amountDollars);
+            int amountCents = Money.ToCents(amount);
 
-            // 2) Checkout Session con metadata para el webhook (paso 3)
             var domain = Request.Url.GetLeftPart(UriPartial.Authority);
 
             var options = new SessionCreateOptions
@@ -66,7 +108,7 @@ namespace GolaStripe.Controllers
                     UnitAmount = amountCents,
                     ProductData = new SessionLineItemPriceDataProductDataOptions
                     {
-                        Name = itemName
+                        Name = productName
                     }
                 }
             }
@@ -74,10 +116,7 @@ namespace GolaStripe.Controllers
             };
 
             var session = new SessionService().Create(options);
-
-            // 3) Guardar cs_... en la orden
             GolaPayDb.SetStripeSessionId(orderId, session.Id);
-
             return Redirect(session.Url);
         }
 
@@ -164,6 +203,35 @@ namespace GolaStripe.Controllers
                     if (session.PaymentMethodTypes != null && session.PaymentMethodTypes.Count > 0)
                         pmType = session.PaymentMethodTypes[0];
 
+                    string cardBrand = null;
+                    string cardLast4 = null;
+
+                    if (!string.IsNullOrEmpty(session.PaymentIntentId))
+                    {
+                        var pi = new PaymentIntentService().Get(
+                            session.PaymentIntentId,
+                            new PaymentIntentGetOptions
+                            {
+                                Expand = new List<string> { "payment_method", "latest_charge" }
+                            });
+
+                        if (pi.PaymentMethod != null && pi.PaymentMethod.Card != null)
+                        {
+                            cardBrand = pi.PaymentMethod.Card.Brand;
+                            cardLast4 = pi.PaymentMethod.Card.Last4;
+                        }
+                        else if (pi.LatestCharge != null
+                                 && pi.LatestCharge.PaymentMethodDetails != null
+                                 && pi.LatestCharge.PaymentMethodDetails.Card != null)
+                        {
+                            cardBrand = pi.LatestCharge.PaymentMethodDetails.Card.Brand;
+                            cardLast4 = pi.LatestCharge.PaymentMethodDetails.Card.Last4;
+                        }
+
+                        if (string.IsNullOrEmpty(pmType) && pi.PaymentMethod != null)
+                            pmType = pi.PaymentMethod.Type;
+                    }
+
                     GolaPayDb.MarkOrderPaidFromCheckoutSession(
                         orderId.Value,
                         session.PaymentIntentId,
@@ -171,8 +239,8 @@ namespace GolaStripe.Controllers
                         session.CustomerDetails != null ? session.CustomerDetails.Name : null,
                         session.CustomerId,
                         pmType,
-                        null,
-                        null,
+                        cardBrand,
+                        cardLast4,
                         null,
                         amountDollars);
 
