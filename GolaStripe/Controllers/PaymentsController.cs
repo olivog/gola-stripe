@@ -208,6 +208,7 @@ namespace GolaStripe.Controllers
 
                     if (!string.IsNullOrEmpty(session.PaymentIntentId))
                     {
+                        EnsureStripeApiKey();
                         var pi = new PaymentIntentService().Get(
                             session.PaymentIntentId,
                             new PaymentIntentGetOptions
@@ -230,6 +231,16 @@ namespace GolaStripe.Controllers
 
                         if (string.IsNullOrEmpty(pmType) && pi.PaymentMethod != null)
                             pmType = pi.PaymentMethod.Type;
+
+                        if (cardLast4 == null && !string.IsNullOrEmpty(pi.PaymentMethodId))
+                        {
+                            var pm = new PaymentMethodService().Get(pi.PaymentMethodId);
+                            if (pm.Card != null)
+                            {
+                                cardBrand = pm.Card.Brand;
+                                cardLast4 = pm.Card.Last4;
+                            }
+                        }
                     }
 
                     GolaPayDb.MarkOrderPaidFromCheckoutSession(
