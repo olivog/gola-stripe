@@ -261,12 +261,18 @@ namespace GolaStripe.Controllers
                             }
                         }
                     }
-
+                    string customerCountry = null;
+                    if (session.CustomerDetails != null
+                        && session.CustomerDetails.Address != null)
+                    {
+                        customerCountry = session.CustomerDetails.Address.Country; // "PR", "US", …
+                    }
                     GolaPayDb.MarkOrderPaidFromCheckoutSession(
                         orderId.Value,
                         session.PaymentIntentId,
                         session.CustomerEmail ?? (session.CustomerDetails != null ? session.CustomerDetails.Email : null),
                         session.CustomerDetails != null ? session.CustomerDetails.Name : null,
+                        customerCountry,
                         session.CustomerId,
                         pmType,
                         cardBrand,
@@ -274,16 +280,7 @@ namespace GolaStripe.Controllers
                         null,
                         amountDollars);
 
-                    if (cardLast4 == null)
-                    {
-                        GolaPayDb.CompleteWebhookEvent(
-                            webhookEventId, orderId, "Processed",
-                            "Paid OK pero sin CardLast4 (PI=" + session.PaymentIntentId + ")");
-                    }
-                    else
-                    {
-                        GolaPayDb.CompleteWebhookEvent(webhookEventId, orderId, "Processed", null);
-                    }
+                    GolaPayDb.CompleteWebhookEvent(webhookEventId, orderId, "Processed", null);
                 }
                 else
                 {

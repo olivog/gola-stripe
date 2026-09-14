@@ -115,6 +115,7 @@ WHERE OrderId = @orderId AND Status = 'Pending';", conn))
     string paymentIntentId,
     string customerEmail,
     string customerName,
+    string customerCountry,
     string stripeCustomerId,
     string paymentMethodType,
     string cardBrand,
@@ -129,6 +130,7 @@ SET Status = 'Paid',
     StripePaymentIntentId = @pi,
     CustomerEmail = COALESCE(@email, CustomerEmail),
     CustomerName = COALESCE(@name, CustomerName),
+    CustomerCountry = COALESCE(@country, CustomerCountry),
     StripeCustomerId = COALESCE(@cus, StripeCustomerId),
     PaymentMethodType = @pmType,
     CardBrand = @brand,
@@ -144,6 +146,7 @@ WHERE OrderId = @orderId
                 cmd.Parameters.Add("@pi", SqlDbType.VarChar, 64).Value = (object)paymentIntentId ?? DBNull.Value;
                 cmd.Parameters.Add("@email", SqlDbType.VarChar, 320).Value = (object)customerEmail ?? DBNull.Value;
                 cmd.Parameters.Add("@name", SqlDbType.VarChar, 200).Value = (object)customerName ?? DBNull.Value;
+                cmd.Parameters.Add("@country", SqlDbType.Char, 2).Value = (object)customerCountry ?? DBNull.Value;
                 cmd.Parameters.Add("@cus", SqlDbType.VarChar, 64).Value = (object)stripeCustomerId ?? DBNull.Value;
                 cmd.Parameters.Add("@pmType", SqlDbType.VarChar, 40).Value = (object)paymentMethodType ?? DBNull.Value;
                 cmd.Parameters.Add("@brand", SqlDbType.VarChar, 40).Value = (object)cardBrand ?? DBNull.Value;
