@@ -247,5 +247,146 @@ WHERE WebhookEventId = @id;", conn))
                 return o == null || o == DBNull.Value ? (long?)null : Convert.ToInt64(o);
             }
         }
+    
+        public static bool TryGetReceiptBySessionId(string sessionId, out GolaStripe.Models.ReceiptVm receipt)
+        {
+            receipt = null;
+            if (string.IsNullOrWhiteSpace(sessionId))
+                return false;
+
+            using (var conn = new SqlConnection(Cs))
+            {
+                conn.Open();
+
+                GolaStripe.Models.ReceiptVm vm = null;
+                using (var cmd = new SqlCommand(@"
+SELECT OrderId, PublicOrderId, Status, CustomerEmail, CustomerName, CustomerCountry,
+       Currency, AmountTotal, CardBrand, CardLast4, PaidAt, StripeSessionId
+FROM dbo.Orders
+WHERE StripeSessionId = @sid;", conn))
+                {
+                    cmd.Parameters.Add("@sid", SqlDbType.VarChar, 128).Value = sessionId;
+                    using (var r = cmd.ExecuteReader())
+                    {
+                        if (!r.Read())
+                            return false;
+
+                        vm = new GolaStripe.Models.ReceiptVm
+                        {
+                            OrderId = r.GetInt64(0),
+                            PublicOrderId = r.GetGuid(1),
+                            Status = r.IsDBNull(2) ? null : r.GetString(2),
+                            CustomerEmail = r.IsDBNull(3) ? null : r.GetString(3),
+                            CustomerName = r.IsDBNull(4) ? null : r.GetString(4),
+                            CustomerCountry = r.IsDBNull(5) ? null : r.GetString(5).Trim(),
+                            Currency = r.IsDBNull(6) ? "usd" : r.GetString(6).Trim(),
+                            AmountTotal = r.IsDBNull(7) ? 0m : r.GetDecimal(7),
+                            CardBrand = r.IsDBNull(8) ? null : r.GetString(8),
+                            CardLast4 = r.IsDBNull(9) ? null : r.GetString(9),
+                            PaidAtUtc = r.IsDBNull(10) ? (DateTime?)null : r.GetDateTime(10),
+                            StripeSessionId = r.IsDBNull(11) ? null : r.GetString(11)
+                        };
+                    }
+                }
+
+                using (var cmd = new SqlCommand(@"
+SELECT Name, Quantity, UnitAmount, Currency
+FROM dbo.OrderItems
+WHERE OrderId = @oid
+ORDER BY OrderItemId;", conn))
+                {
+                    cmd.Parameters.Add("@oid", SqlDbType.BigInt).Value = vm.OrderId;
+                    using (var r = cmd.ExecuteReader())
+                    {
+                        while (r.Read())
+                        {
+                            vm.Lines.Add(new GolaStripe.Models.ReceiptLine
+                            {
+                                Name = r.IsDBNull(0) ? "" : r.GetString(0),
+                                Quantity = r.GetInt32(1),
+                                UnitAmount = r.IsDBNull(2) ? 0m : r.GetDecimal(2),
+                                Currency = r.IsDBNull(3) ? vm.Currency : r.GetString(3).Trim()
+                            });
+                        }
+                    }
+                }
+
+                receipt = vm;
+                return true;
+            }
+        }
+        /// <summary>Pending → Cancelled (clic en Cancel de Checkout). Devuelve true si cambió.</summary>
+        public static bool TryMarkOrderCancelledBySessionId(string sessionId, out long? orderId, out string status)
+        {
+            orderId = null;
+            status = null;
+            if (string.IsNullOrWhiteSpace(sessionId))
+                return false;
+
+            using (var conn = new SqlConnection(Cs))
+            {
+                conn.Open();
+
+                using (var cmd = new SqlCommand(@"
+SELECT OrderId, Status FROM dbo.Orders WHERE StripeSessionId = @sid;", conn))
+                {
+                    cmd.Parameters.Add("@sid", SqlDbType.VarChar, 128).Value = sessionId;
+                    using (var r = cmd.ExecuteReader())
+                    {
+                        if (!r.Read())
+                            return false;
+                        orderId = r.GetInt64(0);
+                        status = r.IsDBNull(1) ? null : r.GetString(1);
+                    }
+                }
+
+                if (!string.Equals(status, "Pending", StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                using (var cmd = new SqlCommand(@"
+UPDATE dbo.Orders
+SET Status = 'Cancelled',
+    CancelledAt = SYSUTCDATETIME(),
+    UpdatedAt = SYSUTCDATETIME()
+WHERE OrderId = @oid
+  AND Status = 'Pending';", conn))
+                {
+                    cmd.Parameters.Add("@oid", SqlDbType.BigInt).Value = orderId.Value;
+                    var n = cmd.ExecuteNonQuery();
+                    if (n > 0)
+                    {
+                        status = "Cancelled";
+                        return true;
+                    }
+                }
+
+                using (var cmd = new SqlCommand(
+                    "SELECT Status FROM dbo.Orders WHERE OrderId = @oid", conn))
+                {
+                    cmd.Parameters.Add("@oid", SqlDbType.BigInt).Value = orderId.Value;
+                    var o = cmd.ExecuteScalar();
+                    status = o == null || o == DBNull.Value ? status : Convert.ToString(o);
+                }
+                return false;
+            }
+        }
+
+        /// <summary>Pending → Expired (webhook checkout.session.expired). No pisa Cancelled/Paid.</summary>
+        public static bool TryMarkOrderExpired(long orderId)
+        {
+            using (var conn = new SqlConnection(Cs))
+            using (var cmd = new SqlCommand(@"
+UPDATE dbo.Orders
+SET Status = 'Expired',
+    CancelledAt = COALESCE(CancelledAt, SYSUTCDATETIME()),
+    UpdatedAt = SYSUTCDATETIME()
+WHERE OrderId = @oid
+  AND Status = 'Pending';", conn))
+            {
+                cmd.Parameters.Add("@oid", SqlDbType.BigInt).Value = orderId;
+                conn.Open();
+                return cmd.ExecuteNonQuery() > 0;
+            }
+        }
     }
 }

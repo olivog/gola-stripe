@@ -89,7 +89,7 @@ namespace GolaStripe.Controllers
             {
                 Mode = "payment",
                 SuccessUrl = domain + "/Payments/Success?session_id={CHECKOUT_SESSION_ID}",
-                CancelUrl = domain + "/Payments/Cancel",
+                CancelUrl = domain + "/Payments/Cancel?session_id={CHECKOUT_SESSION_ID}",
                 ClientReferenceId = publicOrderId.ToString(),
                 Metadata = new Dictionary<string, string>
         {
@@ -125,14 +125,71 @@ namespace GolaStripe.Controllers
         {
             ViewBag.SessionId = session_id;
 
+            GolaStripe.Models.ReceiptVm receipt = null;
+
             if (!string.IsNullOrEmpty(session_id))
             {
                 try
                 {
-                    EnsureStripeApiKey();
-                    var session = new SessionService().Get(session_id);
-                    ViewBag.PaymentStatus = session.PaymentStatus;
-                    ViewBag.AmountTotal = session.AmountTotal; // centavos
+                    if (!GolaPayDb.TryGetReceiptBySessionId(session_id, out receipt))
+                    {
+                        EnsureStripeApiKey();
+                        var session = new SessionService().Get(
+                            session_id,
+                            new SessionGetOptions
+                            {
+                                Expand = new List<string> { "line_items" }
+                            });
+
+                        receipt = new GolaStripe.Models.ReceiptVm
+                        {
+                            StripeSessionId = session.Id,
+                            Status = session.PaymentStatus,
+                            Currency = session.Currency ?? "usd",
+                            AmountTotal = (session.AmountTotal ?? 0) / 100m,
+                            CustomerEmail = session.CustomerDetails != null
+                                ? session.CustomerDetails.Email
+                                : session.CustomerEmail,
+                            CustomerName = session.CustomerDetails != null
+                                ? session.CustomerDetails.Name
+                                : null,
+                            CustomerCountry = session.CustomerDetails != null
+                                && session.CustomerDetails.Address != null
+                                ? session.CustomerDetails.Address.Country
+                                : null
+                        };
+
+                        if (session.LineItems != null && session.LineItems.Data != null)
+                        {
+                            foreach (var li in session.LineItems.Data)
+                            {
+                                var name = li.Description;
+                                if (string.IsNullOrEmpty(name) && li.Price != null && li.Price.ProductId != null)
+                                    name = li.Price.ProductId;
+
+                                receipt.Lines.Add(new GolaStripe.Models.ReceiptLine
+                                {
+                                    Name = name ?? "Ítem",
+                                    Quantity = (int)(li.Quantity ?? 1),
+                                    UnitAmount = (li.Price != null && li.Price.UnitAmount != null
+                                        ? li.Price.UnitAmount.Value
+                                        : (li.AmountTotal / Math.Max(1, li.Quantity ?? 1))) / 100m,
+                                    Currency = li.Currency ?? receipt.Currency
+                                });
+                            }
+                        }
+
+                        if (receipt.Lines.Count == 0 && receipt.AmountTotal > 0)
+                        {
+                            receipt.Lines.Add(new GolaStripe.Models.ReceiptLine
+                            {
+                                Name = "Pago",
+                                Quantity = 1,
+                                UnitAmount = receipt.AmountTotal,
+                                Currency = receipt.Currency
+                            });
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -140,12 +197,33 @@ namespace GolaStripe.Controllers
                 }
             }
 
-            return View();
+            return View(receipt);
         }
 
-        // GET /Payments/Cancel
-        public ActionResult Cancel()
+                // GET /Payments/Cancel?session_id=cs_test_...
+        public ActionResult Cancel(string session_id)
         {
+            ViewBag.SessionId = session_id;
+            ViewBag.OrderStatus = null;
+            ViewBag.OrderId = null;
+
+            if (!string.IsNullOrEmpty(session_id))
+            {
+                try
+                {
+                    long? orderId;
+                    string status;
+                    var changed = GolaPayDb.TryMarkOrderCancelledBySessionId(session_id, out orderId, out status);
+                    ViewBag.OrderId = orderId;
+                    ViewBag.OrderStatus = status;
+                    ViewBag.JustCancelled = changed;
+                }
+                catch (Exception ex)
+                {
+                    ViewBag.Error = ex.Message;
+                }
+            }
+
             return View();
         }
         [HttpPost]
@@ -280,6 +358,27 @@ namespace GolaStripe.Controllers
                         null,
                         amountDollars);
 
+                    GolaPayDb.CompleteWebhookEvent(webhookEventId, orderId, "Processed", null);
+                }
+                                else if (stripeEvent.Type == "checkout.session.expired")
+                {
+                    var session = stripeEvent.Data.Object as Session;
+                    long? orderId = null;
+
+                    if (session.Metadata != null && session.Metadata.ContainsKey("order_id"))
+                        orderId = long.Parse(session.Metadata["order_id"]);
+                    else if (!string.IsNullOrEmpty(session.ClientReferenceId))
+                        orderId = GolaPayDb.FindOrderIdByPublicOrderId(Guid.Parse(session.ClientReferenceId));
+                    else
+                        orderId = GolaPayDb.FindOrderIdBySessionId(session.Id);
+
+                    if (orderId == null)
+                    {
+                        GolaPayDb.CompleteWebhookEvent(webhookEventId, null, "Failed", "Order not found");
+                        return new HttpStatusCodeResult(200);
+                    }
+
+                    GolaPayDb.TryMarkOrderExpired(orderId.Value);
                     GolaPayDb.CompleteWebhookEvent(webhookEventId, orderId, "Processed", null);
                 }
                 else

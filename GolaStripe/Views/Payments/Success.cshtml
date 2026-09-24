@@ -1,22 +1,199 @@
-﻿@{
-    ViewBag.Title = "Pago exitoso";
+@model GolaStripe.Models.ReceiptVm
+@{
+    ViewBag.Title = "Recibo de pago";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var money = System.Globalization.CultureInfo.GetCultureInfo("en-US");
 }
 
-<h1>Pago exitoso</h1>
-<p class="ok">Stripe Checkout completó el flujo.</p>
+<style>
+    .receipt-wrap { max-width: 36rem; }
+    .receipt {
+        background: #fff;
+        color: #0f172a;
+        border-radius: 12px;
+        padding: 1.75rem 1.5rem;
+        box-shadow: 0 8px 30px rgba(0,0,0,.35);
+    }
+    .receipt-logo { display: block; max-height: 56px; width: auto; margin: 0 auto 1.25rem; }
+    .receipt-title { text-align: center; margin: 0 0 .25rem; font-size: 1.35rem; color: #0f172a; }
+    .receipt-sub { text-align: center; margin: 0 0 1.25rem; color: #64748b; font-size: .9rem; }
+    .receipt-meta { font-size: .85rem; color: #334155; margin-bottom: 1.25rem; }
+    .receipt-meta div { margin: .2rem 0; }
+    .receipt-meta strong { color: #0f172a; }
+    table.lines {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: .95rem;
+        margin-bottom: 1rem;
+    }
+    table.lines th {
+        text-align: left;
+        border-bottom: 2px solid #e2e8f0;
+        padding: .5rem 0;
+        color: #64748b;
+        font-weight: 600;
+        font-size: .75rem;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+    table.lines th.num, table.lines td.num { text-align: right; }
+    table.lines td {
+        padding: .65rem 0;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: top;
+    }
+    .total-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        padding-top: .75rem;
+        border-top: 2px solid #0f172a;
+        font-size: 1.1rem;
+        font-weight: 700;
+    }
+    .badge {
+        display: inline-block;
+        padding: .15rem .55rem;
+        border-radius: 999px;
+        font-size: .75rem;
+        font-weight: 700;
+        background: #dcfce7;
+        color: #166534;
+    }
+    .badge.pending { background: #fef9c3; color: #854d0e; }
+    .actions {
+        margin-top: 1.25rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .75rem;
+        align-items: center;
+    }
+    .btn {
+        appearance: none;
+        border: 0;
+        border-radius: 8px;
+        padding: .65rem 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        background: #38bdf8;
+        color: #0f172a;
+        text-decoration: none;
+        font-size: .95rem;
+    }
+    .btn.secondary { background: #334155; color: #e2e8f0; }
+    .hint { font-size: .8rem; color: #94a3b8; margin: 0; }
+    .err { color: #f87171; }
 
+    @@media print {
+        body { background: #fff !important; color: #000 !important; margin: 0 !important; }
+        main { max-width: none !important; }
+        .no-print { display: none !important; }
+        .receipt {
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            padding: 0 !important;
+            max-width: 100% !important;
+        }
+        a { color: inherit; text-decoration: none; }
+    }
+</style>
+
+<div class="receipt-wrap">
 @if (!string.IsNullOrEmpty(ViewBag.Error as string))
 {
-    <p>No se pudo leer la sesión: @ViewBag.Error</p>
+    <p class="err">No se pudo cargar el recibo: @ViewBag.Error</p>
+    <p class="no-print"><a class="btn secondary" href="@Url.Action("Index", "Home")">Volver</a></p>
+}
+else if (Model == null)
+{
+    <p class="err">Falta <code>session_id</code> en la URL.</p>
+    <p class="no-print"><a class="btn secondary" href="@Url.Action("Index", "Home")">Volver</a></p>
 }
 else
 {
-    <p>Session: <code>@ViewBag.SessionId</code></p>
-    <p>PaymentStatus: <strong>@ViewBag.PaymentStatus</strong></p>
-    if (ViewBag.AmountTotal != null)
-    {
-        <p>Monto: $@(((long)ViewBag.AmountTotal) / 100.0)</p>
-    }
-}
+    var isPaid = string.Equals(Model.Status, "Paid", StringComparison.OrdinalIgnoreCase)
+              || string.Equals(Model.Status, "paid", StringComparison.OrdinalIgnoreCase);
 
-<p><a href="@Url.Action("Index", "Home")">Volver al inicio</a></p>
+    <div class="receipt" id="receipt">
+        <img class="receipt-logo" src="~/Content/images/gola-logo.png" alt="Gola" />
+        <h1 class="receipt-title">Recibo de pago</h1>
+        <p class="receipt-sub">
+            <span class="badge @(isPaid ? "" : "pending")">@(Model.Status ?? "—")</span>
+            @if (Model.OrderId > 0)
+            {
+                <text> · Orden #@Model.OrderId</text>
+            }
+        </p>
+
+        <div class="receipt-meta">
+            @if (!string.IsNullOrEmpty(Model.CustomerName))
+            {
+                <div><strong>Cliente:</strong> @Model.CustomerName</div>
+            }
+            @if (!string.IsNullOrEmpty(Model.CustomerEmail))
+            {
+                <div><strong>Email:</strong> @Model.CustomerEmail</div>
+            }
+            @if (!string.IsNullOrEmpty(Model.CustomerCountry))
+            {
+                <div><strong>País:</strong> @Model.CustomerCountry</div>
+            }
+            @if (Model.PaidAtUtc.HasValue)
+            {
+                var local = Model.PaidAtUtc.Value.AddHours(-4); // America/La_Paz (UTC-4)
+                <div><strong>Pagado:</strong> @local.ToString("dd/MM/yyyy HH:mm") AST</div>
+            }
+            @if (!string.IsNullOrEmpty(Model.CardBrand) && !string.IsNullOrEmpty(Model.CardLast4))
+            {
+                <div><strong>Tarjeta:</strong> @Model.CardBrand ···· @Model.CardLast4</div>
+            }
+            @if (Model.PublicOrderId != Guid.Empty)
+            {
+                <div><strong>Ref:</strong> <code style="font-size:.75rem">@Model.PublicOrderId</code></div>
+            }
+        </div>
+
+        <table class="lines">
+            <thead>
+                <tr>
+                    <th>Descripción</th>
+                    <th class="num">Cant.</th>
+                    <th class="num">Precio</th>
+                    <th class="num">Importe</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Lines != null && Model.Lines.Count > 0)
+            {
+                foreach (var line in Model.Lines)
+                {
+                    <tr>
+                        <td>@line.Name</td>
+                        <td class="num">@line.Quantity</td>
+                        <td class="num">@line.UnitAmount.ToString("C", money)</td>
+                        <td class="num">@line.LineTotal.ToString("C", money)</td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr>
+                    <td colspan="4">Sin ítems</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+
+        <div class="total-row">
+            <span>Total (@Model.CurrencyUpper)</span>
+            <span>@Model.AmountTotal.ToString("C", money)</span>
+        </div>
+    </div>
+
+    <div class="actions no-print">
+        <button type="button" class="btn" onclick="window.print()">Guardar como PDF</button>
+        <a class="btn secondary" href="@Url.Action("Index", "Home")">Volver al inicio</a>
+        <p class="hint">En el diálogo de impresión elige “Guardar como PDF” / “Save as PDF”.</p>
+    </div>
+}
+</div>
