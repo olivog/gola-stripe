@@ -115,10 +115,20 @@ namespace GolaStripe.Controllers
         }
             };
 
-            var session = new SessionService().Create(options);
+                        var session = new SessionService().Create(options);
             GolaPayDb.SetStripeSessionId(orderId, session.Id);
-            return Redirect(session.Url);
+
+            // No redirigir al admin: mostrar link compartible para el cliente
+            ViewBag.CheckoutUrl = session.Url;
+            ViewBag.SessionId = session.Id;
+            ViewBag.OrderId = orderId;
+            ViewBag.PublicOrderId = publicOrderId;
+            ViewBag.ProductName = productName;
+            ViewBag.AmountDollars = amount;
+            ViewBag.Currency = currency.ToUpperInvariant();
+            return View("Link");
         }
+
 
         // GET /Payments/Success?session_id=cs_test_...
         public ActionResult Success(string session_id)

@@ -1,37 +1,59 @@
-﻿@{
+@{
     ViewBag.Title = "Nuevo cobro";
 }
 
-<h1>Nuevo cobro</h1>
-<p>Escribe el producto y el precio. Se abre Stripe Checkout (Test).</p>
+<style>
+    .box { max-width: 28rem; }
+    label { font-size: .9rem; color: #94a3b8; }
+    input {
+        width: 100%;
+        padding: .5rem;
+        border-radius: .35rem;
+        border: 1px solid #334155;
+        background: #1e293b;
+        color: #e2e8f0;
+        box-sizing: border-box;
+    }
+    button {
+        padding: .75rem 1.25rem;
+        background: #38bdf8;
+        color: #0f172a;
+        border: 0;
+        border-radius: .5rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .err { color: #f87171; }
+    .muted { color: #94a3b8; font-size: .9rem; }
+</style>
 
-@if (!string.IsNullOrEmpty(ViewBag.Error as string))
-{
-    <p style="color:#f87171;">@ViewBag.Error</p>
-}
+<div class="box">
+    <h1>Nuevo cobro</h1>
+    <p class="muted">Crea un link de Stripe Checkout para enviárselo al cliente. No te redirige a pagar.</p>
 
-@using (Html.BeginForm("CreateCheckout", "Payments", FormMethod.Post))
-{
-    @Html.AntiForgeryToken()
+    @if (!string.IsNullOrEmpty(ViewBag.Error as string))
+    {
+        <p class="err">@ViewBag.Error</p>
+    }
 
-    <p>
-        <label for="productName">Nombre del producto</label><br />
-        <input id="productName" name="productName" type="text" maxlength="200" required
-               value="@(ViewBag.ProductName ?? "")"
-               style="width:100%;padding:.5rem;border-radius:.35rem;border:1px solid #334155;background:#1e293b;color:#e2e8f0;" />
-    </p>
+    @using (Html.BeginForm("CreateCheckout", "Payments", FormMethod.Post))
+    {
+        @Html.AntiForgeryToken()
 
-    <p>
-        <label for="amountDollars">Precio (USD)</label><br />
-        <input id="amountDollars" name="amountDollars" type="number" min="0.50" max="99999.99" step="0.01" required
-               value="@(ViewBag.AmountDollars ?? "10.00")"
-               style="width:100%;padding:.5rem;border-radius:.35rem;border:1px solid #334155;background:#1e293b;color:#e2e8f0;" />
-    </p>
+        <p>
+            <label for="productName">Nombre del producto</label><br />
+            <input id="productName" name="productName" type="text" maxlength="200" required
+                   value="@(ViewBag.ProductName ?? "")" />
+        </p>
 
-    <p>
-        <button type="submit"
-                style="padding:.75rem 1.25rem;background:#38bdf8;color:#0f172a;border:0;border-radius:.5rem;font-weight:600;cursor:pointer;">
-            Ir a Stripe Checkout
-        </button>
-    </p>
-}
+        <p>
+            <label for="amountDollars">Precio (USD)</label><br />
+            <input id="amountDollars" name="amountDollars" type="number" min="0.50" max="99999.99" step="0.01" required
+                   value="@(ViewBag.AmountDollars ?? "10.00")" />
+        </p>
+
+        <p>
+            <button type="submit">Crear link de pago</button>
+        </p>
+    }
+</div>
