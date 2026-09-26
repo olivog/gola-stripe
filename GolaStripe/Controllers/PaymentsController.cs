@@ -6,6 +6,7 @@ using Stripe;
 using Stripe.Checkout;
 using GolaStripe.Helpers;
 using System.IO;
+using System.Diagnostics;
 
 
 namespace GolaStripe.Controllers
@@ -21,6 +22,36 @@ namespace GolaStripe.Controllers
                     "Falta StripeSecretKey. Copia Web.secrets.config.example a Web.secrets.config y pega tus keys de test.");
             }
             StripeConfiguration.ApiKey = sk;
+        }
+
+        /// <summary>
+        /// URL base para links/logo del email. En local (IIS Express) usa la URL del request para que
+        /// los links funcionen; en el servidor usa PublicBaseUrl (https://checkout.golapr.com).
+        /// </summary>
+        private string GetPublicBaseUrl()
+        {
+            var fromRequest = Request.Url.GetLeftPart(UriPartial.Authority);
+            if (Request.IsLocal)
+                return fromRequest;
+
+            var cfg = ConfigurationManager.AppSettings["PublicBaseUrl"];
+            return string.IsNullOrWhiteSpace(cfg) ? fromRequest : cfg.Trim().TrimEnd('/');
+        }
+
+        /// <summary>Envía el recibo por email si la orden está Paid y aún no se envió. Nunca lanza.</summary>
+        private string TrySendReceiptEmail(long orderId)
+        {
+            try
+            {
+                string mailError;
+                ReceiptMailer.TrySendReceiptOnce(orderId, GetPublicBaseUrl(), out mailError);
+                return mailError;
+            }
+            catch (Exception ex)
+            {
+                Trace.TraceError("Recibo email orden " + orderId + ": " + ex);
+                return ex.Message;
+            }
         }
 
         // GET /Payments/New
@@ -141,7 +172,17 @@ namespace GolaStripe.Controllers
             {
                 try
                 {
-                    if (!GolaPayDb.TryGetReceiptBySessionId(session_id, out receipt))
+                    if (GolaPayDb.TryGetReceiptBySessionId(session_id, out receipt))
+                    {
+                        // Respaldo del webhook: si ya está Paid y no se ha enviado el recibo, enviarlo.
+                        // El claim en DB (ReceiptEmailSentAt) evita duplicados con el webhook.
+                        if (receipt.IsPaid && !receipt.ReceiptEmailSentAtUtc.HasValue
+                            && !string.IsNullOrWhiteSpace(receipt.CustomerEmail))
+                        {
+                            TrySendReceiptEmail(receipt.OrderId);
+                        }
+                    }
+                    else
                     {
                         EnsureStripeApiKey();
                         var session = new SessionService().Get(
@@ -210,7 +251,36 @@ namespace GolaStripe.Controllers
             return View(receipt);
         }
 
-                // GET /Payments/Cancel?session_id=cs_test_...
+        // GET /Payments/Receipt?id={PublicOrderId}  (link del email)
+        [HttpGet]
+        public ActionResult Receipt(string id)
+        {
+            GolaStripe.Models.ReceiptVm receipt = null;
+            Guid publicId;
+
+            if (Guid.TryParse((id ?? "").Trim(), out publicId))
+            {
+                try
+                {
+                    if (!GolaPayDb.TryGetReceiptByPublicId(publicId, out receipt) || !receipt.IsPaid)
+                        receipt = null;
+                }
+                catch (Exception ex)
+                {
+                    Trace.TraceError("Receipt " + id + ": " + ex);
+                    ViewBag.Error = "No se pudo cargar el recibo. Intente más tarde.";
+                    receipt = null;
+                }
+            }
+
+            if (receipt == null)
+                Response.StatusCode = 404;
+
+            Response.TrySkipIisCustomErrors = true;
+            return View(receipt);
+        }
+
+        // GET /Payments/Cancel?session_id=cs_test_...
         public ActionResult Cancel(string session_id)
         {
             ViewBag.SessionId = session_id;
@@ -368,7 +438,14 @@ namespace GolaStripe.Controllers
                         null,
                         amountDollars);
 
-                    GolaPayDb.CompleteWebhookEvent(webhookEventId, orderId, "Processed", null);
+                    // Recibo por email (una sola vez por orden, aunque Stripe reenvíe el evento).
+                    // Si falla no rompe el webhook: se anota en WebhookEvents.ErrorMessage y se devuelve 200.
+                    var mailError = TrySendReceiptEmail(orderId.Value);
+                    if (mailError != null && mailError.Length > 900)
+                        mailError = mailError.Substring(0, 900);
+
+                    GolaPayDb.CompleteWebhookEvent(webhookEventId, orderId, "Processed",
+                        mailError == null ? null : "Recibo email: " + mailError);
                 }
                                 else if (stripeEvent.Type == "checkout.session.expired")
                 {

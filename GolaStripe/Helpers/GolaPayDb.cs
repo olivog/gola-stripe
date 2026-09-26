@@ -254,6 +254,33 @@ WHERE WebhookEventId = @id;", conn))
             if (string.IsNullOrWhiteSpace(sessionId))
                 return false;
 
+            var p = new SqlParameter("@sid", SqlDbType.VarChar, 128) { Value = sessionId };
+            return TryGetReceipt("StripeSessionId = @sid", p, out receipt);
+        }
+
+        /// <summary>Recibo por PublicOrderId (link público /Payments/Receipt?id=...).</summary>
+        public static bool TryGetReceiptByPublicId(Guid publicOrderId, out GolaStripe.Models.ReceiptVm receipt)
+        {
+            receipt = null;
+            if (publicOrderId == Guid.Empty)
+                return false;
+
+            var p = new SqlParameter("@pid", SqlDbType.UniqueIdentifier) { Value = publicOrderId };
+            return TryGetReceipt("PublicOrderId = @pid", p, out receipt);
+        }
+
+        /// <summary>Recibo por OrderId (webhook / envío de email).</summary>
+        public static bool TryGetReceiptByOrderId(long orderId, out GolaStripe.Models.ReceiptVm receipt)
+        {
+            var p = new SqlParameter("@oid", SqlDbType.BigInt) { Value = orderId };
+            return TryGetReceipt("OrderId = @oid", p, out receipt);
+        }
+
+        /// <summary>Carga Orders + OrderItems. whereSql es fijo (no viene del usuario); el valor va en el parámetro.</summary>
+        private static bool TryGetReceipt(string whereSql, SqlParameter whereParam, out GolaStripe.Models.ReceiptVm receipt)
+        {
+            receipt = null;
+
             using (var conn = new SqlConnection(Cs))
             {
                 conn.Open();
@@ -261,11 +288,11 @@ WHERE WebhookEventId = @id;", conn))
                 GolaStripe.Models.ReceiptVm vm = null;
                 using (var cmd = new SqlCommand(@"
 SELECT OrderId, PublicOrderId, Status, CustomerEmail, CustomerName, CustomerCountry,
-       Currency, AmountTotal, CardBrand, CardLast4, PaidAt, StripeSessionId
+       Currency, AmountTotal, CardBrand, CardLast4, PaidAt, StripeSessionId, ReceiptEmailSentAt
 FROM dbo.Orders
-WHERE StripeSessionId = @sid;", conn))
+WHERE " + whereSql + ";", conn))
                 {
-                    cmd.Parameters.Add("@sid", SqlDbType.VarChar, 128).Value = sessionId;
+                    cmd.Parameters.Add(whereParam);
                     using (var r = cmd.ExecuteReader())
                     {
                         if (!r.Read())
@@ -284,7 +311,8 @@ WHERE StripeSessionId = @sid;", conn))
                             CardBrand = r.IsDBNull(8) ? null : r.GetString(8),
                             CardLast4 = r.IsDBNull(9) ? null : r.GetString(9),
                             PaidAtUtc = r.IsDBNull(10) ? (DateTime?)null : r.GetDateTime(10),
-                            StripeSessionId = r.IsDBNull(11) ? null : r.GetString(11)
+                            StripeSessionId = r.IsDBNull(11) ? null : r.GetString(11),
+                            ReceiptEmailSentAtUtc = r.IsDBNull(12) ? (DateTime?)null : r.GetDateTime(12)
                         };
                     }
                 }
@@ -315,6 +343,44 @@ ORDER BY OrderItemId;", conn))
                 return true;
             }
         }
+
+        /// <summary>
+        /// "Reclama" el envío del recibo por email de forma atómica (solo órdenes Paid con email y sin enviar).
+        /// Devuelve true si este proceso ganó el claim y debe enviar; false si ya se envió / otro lo está enviando.
+        /// </summary>
+        public static bool TryMarkReceiptEmailSent(long orderId)
+        {
+            using (var conn = new SqlConnection(Cs))
+            using (var cmd = new SqlCommand(@"
+UPDATE dbo.Orders
+SET ReceiptEmailSentAt = SYSUTCDATETIME()
+WHERE OrderId = @oid
+  AND Status = 'Paid'
+  AND ReceiptEmailSentAt IS NULL
+  AND CustomerEmail IS NOT NULL
+  AND CustomerEmail <> '';", conn))
+            {
+                cmd.Parameters.Add("@oid", SqlDbType.BigInt).Value = orderId;
+                conn.Open();
+                return cmd.ExecuteNonQuery() > 0;
+            }
+        }
+
+        /// <summary>Si el envío falló, suelta el claim para que un reintento pueda enviar.</summary>
+        public static void ClearReceiptEmailSent(long orderId)
+        {
+            using (var conn = new SqlConnection(Cs))
+            using (var cmd = new SqlCommand(@"
+UPDATE dbo.Orders
+SET ReceiptEmailSentAt = NULL
+WHERE OrderId = @oid;", conn))
+            {
+                cmd.Parameters.Add("@oid", SqlDbType.BigInt).Value = orderId;
+                conn.Open();
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         /// <summary>Pending → Cancelled (clic en Cancel de Checkout). Devuelve true si cambió.</summary>
         public static bool TryMarkOrderCancelledBySessionId(string sessionId, out long? orderId, out string status)
         {

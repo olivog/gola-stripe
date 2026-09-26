@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace GolaStripe.Models
@@ -30,6 +30,7 @@ namespace GolaStripe.Models
         public string CardLast4 { get; set; }
         public DateTime? PaidAtUtc { get; set; }
         public string StripeSessionId { get; set; }
+        public DateTime? ReceiptEmailSentAtUtc { get; set; }
         public List<ReceiptLine> Lines { get; set; }
 
         public ReceiptVm()
@@ -41,6 +42,11 @@ namespace GolaStripe.Models
         public string CurrencyUpper
         {
             get { return string.IsNullOrEmpty(Currency) ? "USD" : Currency.ToUpperInvariant(); }
+        }
+
+        public bool IsPaid
+        {
+            get { return string.Equals(Status, "Paid", StringComparison.OrdinalIgnoreCase); }
         }
     }
 }

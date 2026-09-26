@@ -1,0 +1,83 @@
+@model GolaStripe.Models.ReceiptVm
+@* Recibo compartido por Success.cshtml y Receipt.cshtml *@
+@{
+    var money = System.Globalization.CultureInfo.GetCultureInfo("en-US");
+    var isPaid = string.Equals(Model.Status, "Paid", StringComparison.OrdinalIgnoreCase)
+              || string.Equals(Model.Status, "paid", StringComparison.OrdinalIgnoreCase);
+}
+
+<div class="receipt" id="receipt">
+    <img class="receipt-logo" src="~/Content/images/gola-logo.png" alt="Gola" />
+    <h1 class="receipt-title">Recibo de pago</h1>
+    <p class="receipt-sub">
+        <span class="badge @(isPaid ? "" : "pending")">@(Model.Status ?? "—")</span>
+        @if (Model.OrderId > 0)
+        {
+            <text> · Orden #@Model.OrderId</text>
+        }
+    </p>
+
+    <div class="receipt-meta">
+        @if (!string.IsNullOrEmpty(Model.CustomerName))
+        {
+            <div><strong>Cliente:</strong> @Model.CustomerName</div>
+        }
+        @if (!string.IsNullOrEmpty(Model.CustomerEmail))
+        {
+            <div><strong>Email:</strong> @Model.CustomerEmail</div>
+        }
+        @if (!string.IsNullOrEmpty(Model.CustomerCountry))
+        {
+            <div><strong>País:</strong> @Model.CustomerCountry</div>
+        }
+        @if (Model.PaidAtUtc.HasValue)
+        {
+            var local = Model.PaidAtUtc.Value.AddHours(-4); // America/La_Paz (UTC-4)
+            <div><strong>Pagado:</strong> @local.ToString("dd/MM/yyyy HH:mm") AST</div>
+        }
+        @if (!string.IsNullOrEmpty(Model.CardBrand) && !string.IsNullOrEmpty(Model.CardLast4))
+        {
+            <div><strong>Tarjeta:</strong> @Model.CardBrand ···· @Model.CardLast4</div>
+        }
+        @if (Model.PublicOrderId != Guid.Empty)
+        {
+            <div><strong>Ref:</strong> <code style="font-size:.75rem">@Model.PublicOrderId</code></div>
+        }
+    </div>
+
+    <table class="lines">
+        <thead>
+            <tr>
+                <th>Descripción</th>
+                <th class="num">Cant.</th>
+                <th class="num">Precio</th>
+                <th class="num">Importe</th>
+            </tr>
+        </thead>
+        <tbody>
+        @if (Model.Lines != null && Model.Lines.Count > 0)
+        {
+            foreach (var line in Model.Lines)
+            {
+                <tr>
+                    <td>@line.Name</td>
+                    <td class="num">@line.Quantity</td>
+                    <td class="num">@line.UnitAmount.ToString("C", money)</td>
+                    <td class="num">@line.LineTotal.ToString("C", money)</td>
+                </tr>
+            }
+        }
+        else
+        {
+            <tr>
+                <td colspan="4">Sin ítems</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    <div class="total-row">
+        <span>Total (@Model.CurrencyUpper)</span>
+        <span>@Model.AmountTotal.ToString("C", money)</span>
+    </div>
+</div>

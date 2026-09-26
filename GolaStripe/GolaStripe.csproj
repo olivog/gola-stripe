@@ -129,6 +129,7 @@
     </Compile>
     <Compile Include="Helpers\GolaPayDb.cs" />
     <Compile Include="Helpers\Money.cs" />
+    <Compile Include="Helpers\ReceiptMailer.cs" />
     <Compile Include="Models\ReceiptModels.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -152,6 +153,9 @@
     <Content Include="Views\Payments\Cancel.cshtml" />
     <Content Include="Views\Payments\New.cshtml" />
     <Content Include="Views\Payments\Link.cshtml" />
+    <Content Include="Views\Payments\Receipt.cshtml" />
+    <Content Include="Views\Payments\_Receipt.cshtml" />
+    <Content Include="Views\Payments\_ReceiptStyles.cshtml" />
     <None Include="Web.Debug.config">
       <DependentUpon>Web.config</DependentUpon>
     </None>
