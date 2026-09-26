@@ -67,9 +67,6 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="Nav_Home" xml:space="preserve">
-    <value>Home</value>
-  </data>
   <data name="Nav_Back" xml:space="preserve">
     <value>Back</value>
   </data>
@@ -78,9 +75,6 @@
   </data>
   <data name="LangSwitch_Label" xml:space="preserve">
     <value>Language</value>
-  </data>
-  <data name="Home_Running" xml:space="preserve">
-    <value>The MVC5 skeleton is running in VS2019.</value>
   </data>
   <data name="Label_Order" xml:space="preserve">
     <value>Order</value>
@@ -267,9 +261,6 @@
   </data>
   <data name="Cancel_Error" xml:space="preserve">
     <value>We couldn't update the order.</value>
-  </data>
-  <data name="Cancel_TryAgain" xml:space="preserve">
-    <value>Try again</value>
   </data>
   <data name="Email_Subject" xml:space="preserve">
     <value>Payment receipt - {0} - Order #{1}</value>

@@ -122,15 +122,24 @@
   <ItemGroup>
     <Compile Include="App_Start\FilterConfig.cs" />
     <Compile Include="App_Start\RouteConfig.cs" />
+    <Compile Include="Controllers\DeviceController.cs" />
     <Compile Include="Controllers\HomeController.cs" />
     <Compile Include="Controllers\PaymentsController.cs" />
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
+    <Compile Include="Helpers\Ast.cs" />
+    <Compile Include="Helpers\DbText.cs" />
+    <Compile Include="Helpers\DeviceAuth.cs" />
+    <Compile Include="Helpers\DeviceDb.cs" />
     <Compile Include="Helpers\GolaPayDb.cs" />
     <Compile Include="Helpers\Lang.cs" />
     <Compile Include="Helpers\Money.cs" />
+    <Compile Include="Helpers\PublicAccessAttribute.cs" />
     <Compile Include="Helpers\ReceiptMailer.cs" />
+    <Compile Include="Models\DeviceModels.cs" />
+    <Compile Include="Models\OrderDetailModels.cs" />
+    <Compile Include="Models\PaymentsReceivedModels.cs" />
     <Compile Include="Models\ReceiptModels.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Resources\Strings.Designer.cs">
@@ -161,7 +170,8 @@
     <Content Include="Views\Web.config" />
     <Content Include="Views\_ViewStart.cshtml" />
     <Content Include="Views\Shared\_Layout.cshtml" />
-    <Content Include="Views\Home\Index.cshtml" />
+    <Content Include="Views\Device\Enroll.cshtml" />
+    <Content Include="Views\Device\Index.cshtml" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -170,6 +180,8 @@
     <Content Include="Views\Payments\New.cshtml" />
     <Content Include="Views\Payments\Link.cshtml" />
     <Content Include="Views\Payments\Receipt.cshtml" />
+    <Content Include="Views\Payments\Order.cshtml" />
+    <Content Include="Views\Payments\Received.cshtml" />
     <Content Include="Views\Payments\_Receipt.cshtml" />
     <Content Include="Views\Payments\_ReceiptStyles.cshtml" />
     <None Include="Web.Debug.config">

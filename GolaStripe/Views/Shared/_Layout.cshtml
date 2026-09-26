@@ -1,9 +1,13 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="@Lang.Current">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewBag.Title - Gola Stripe</title>
+    @if (ViewBag.NoIndex is bool && (bool)ViewBag.NoIndex)
+    {
+        <meta name="robots" content="noindex, nofollow" />
+    }
     <style>
         body {
             font-family: system-ui, sans-serif;
@@ -46,14 +50,50 @@
             font-weight: 700;
         }
 
+        .admin-nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .6rem;
+            align-items: center;
+            max-width: 40rem;
+            margin: -1rem 0 1.25rem;
+            padding: .5rem .75rem;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: .5rem;
+            font-size: .9rem;
+        }
+
+        .admin-nav a { color: #94a3b8; text-decoration: none; font-weight: 600; }
+        .admin-nav a:hover { color: #e2e8f0; }
+        .admin-nav a.active { color: #38bdf8; border-bottom: 2px solid #38bdf8; }
+        .admin-nav .sep { color: #334155; }
+
         @@media print {
-            .lang-switch { display: none !important; }
+            .lang-switch, .admin-nav { display: none !important; }
         }
     </style>
     <link rel="icon" href="~/favicon.ico" type="image/x-icon" />
     <link rel="shortcut icon" href="~/favicon.ico" type="image/x-icon" />
 </head>
 <body>
+    @* Menú admin (solo inglés): solo en páginas protegidas (acciones sin [PublicAccess]) con dispositivo de confianza. *@
+    @if (DeviceAuth.IsAdminRequest && DeviceAuth.Current != null)
+    {
+        var navController = (ViewContext.RouteData.Values["controller"] as string ?? "").ToLowerInvariant();
+        var navAction = (ViewContext.RouteData.Values["action"] as string ?? "").ToLowerInvariant();
+        var navActive = navController == "device" ? "devices"
+            : navController == "payments" && (navAction == "received" || navAction == "order") ? "received"
+            : navController == "payments" && (navAction == "new" || navAction == "createcheckout") ? "new"
+            : "";
+        <nav class="admin-nav no-print" aria-label="Admin">
+            <a href="@Url.Action("New", "Payments")" class="@(navActive == "new" ? "active" : "")">New charge</a>
+            <span class="sep">|</span>
+            <a href="@Url.Action("Received", "Payments")" class="@(navActive == "received" ? "active" : "")">Payments received</a>
+            <span class="sep">|</span>
+            <a href="@Url.Action("Index", "Device")" class="@(navActive == "devices" ? "active" : "")">Devices</a>
+        </nav>
+    }
     @* Selector EN | ES: misma URL con lang= reemplazado (conserva session_id, id, etc.). Solo en GET. *@
     @if (Request.HttpMethod == "GET" && !(ViewBag.HideLangSwitch is bool && (bool)ViewBag.HideLangSwitch))
     {

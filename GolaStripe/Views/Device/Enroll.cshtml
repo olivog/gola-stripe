@@ -1,0 +1,73 @@
+﻿@using GolaStripe.Models
+@{
+    var existing = ViewBag.ExistingDevice as TrustedDevice;
+    var disabled = ViewBag.EnrollDisabled is bool && (bool)ViewBag.EnrollDisabled;
+}
+
+<style>
+    .box { max-width: 28rem; }
+    label { font-size: .9rem; color: #94a3b8; }
+    input {
+        width: 100%;
+        padding: .5rem;
+        border-radius: .35rem;
+        border: 1px solid #334155;
+        background: #1e293b;
+        color: #e2e8f0;
+        box-sizing: border-box;
+    }
+    button {
+        padding: .75rem 1.25rem;
+        background: #38bdf8;
+        color: #0f172a;
+        border: 0;
+        border-radius: .5rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .err { color: #f87171; }
+    .muted { color: #94a3b8; font-size: .9rem; }
+</style>
+
+<div class="box">
+    <h1>Enroll device</h1>
+
+    @if (existing != null)
+    {
+        <p class="ok">This device is already registered as @existing.DeviceName.</p>
+        <p><a href="@Url.Action("New", "Payments")" style="color:#38bdf8">Go to New charge</a></p>
+    }
+    else if (disabled)
+    {
+        <p class="err">Device enrollment is disabled (the enrollment key is not configured or is too short).</p>
+    }
+    else
+    {
+        <p class="muted">Register this browser as a trusted admin device.</p>
+
+        if (!string.IsNullOrEmpty(ViewBag.Error as string))
+        {
+            <p class="err">@ViewBag.Error</p>
+        }
+
+        using (Html.BeginForm("Enroll", "Device", FormMethod.Post, new { autocomplete = "off" }))
+        {
+            @Html.AntiForgeryToken()
+
+            <p>
+                <label for="enrollKey">Enrollment key</label><br />
+                <input id="enrollKey" name="enrollKey" type="password" required autocomplete="off" />
+            </p>
+
+            <p>
+                <label for="deviceName">Device name</label><br />
+                <input id="deviceName" name="deviceName" type="text" maxlength="100" required
+                       placeholder="PC Gola, iPhone Gilberto..." value="@(ViewBag.DeviceName ?? "")" />
+            </p>
+
+            <p>
+                <button type="submit">Enroll this device</button>
+            </p>
+        }
+    }
+</div>

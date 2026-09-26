@@ -61,15 +61,6 @@ namespace GolaStripe.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Home.
-        /// </summary>
-        public static string Nav_Home {
-            get {
-                return ResourceManager.GetString("Nav_Home", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Back.
         /// </summary>
         public static string Nav_Back {
@@ -93,15 +84,6 @@ namespace GolaStripe.Resources {
         public static string LangSwitch_Label {
             get {
                 return ResourceManager.GetString("LangSwitch_Label", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The MVC5 skeleton is running in VS2019..
-        /// </summary>
-        public static string Home_Running {
-            get {
-                return ResourceManager.GetString("Home_Running", resourceCulture);
             }
         }
         
@@ -660,15 +642,6 @@ namespace GolaStripe.Resources {
         public static string Cancel_Error {
             get {
                 return ResourceManager.GetString("Cancel_Error", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Try again.
-        /// </summary>
-        public static string Cancel_TryAgain {
-            get {
-                return ResourceManager.GetString("Cancel_TryAgain", resourceCulture);
             }
         }
         

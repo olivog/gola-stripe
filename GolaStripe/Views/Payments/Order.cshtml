@@ -1,0 +1,222 @@
+﻿@model GolaStripe.Models.OrderDetailVm
+@* Detalle admin de una orden (solo inglés). Protegido por DeviceGateFilter; noindex. *@
+@{
+    var en = Lang.CultureFor("en");
+    Func<DateTime?, string> ast = d => d.HasValue ? Lang.FormatAst(d.Value, en) : "-";
+    Func<string, string> dash = v => string.IsNullOrWhiteSpace(v) ? "-" : v;
+}
+
+<style>
+    main { max-width: 52rem; }
+    .back { color: #38bdf8; text-decoration: none; font-weight: 600; font-size: .9rem; }
+    .head { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin: .5rem 0 1rem; }
+    .head h1 { margin: 0; }
+    .badge { display: inline-block; padding: .15rem .6rem; border-radius: 999px; font-size: .75rem; font-weight: 700; }
+    .st-paid { background: #dcfce7; color: #166534; }
+    .st-cancelled { background: #fee2e2; color: #991b1b; }
+    .st-expired { background: #e2e8f0; color: #334155; }
+    .st-pending { background: #fef9c3; color: #854d0e; }
+    .mode-test { background: #854d0e; color: #fef9c3; }
+    .mode-live { background: #166534; color: #dcfce7; }
+    .flash { padding: .6rem .8rem; border-radius: .4rem; margin-bottom: 1rem; }
+    .flash.ok { background: #14532d; color: #dcfce7; }
+    .flash.err { background: #7f1d1d; color: #fee2e2; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1rem; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: .5rem; padding: .9rem 1rem; }
+    .card h2 { margin: 0 0 .6rem; font-size: .8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; }
+    dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: .3rem .9rem; font-size: .9rem; }
+    dt { color: #94a3b8; }
+    dd { margin: 0; overflow-wrap: anywhere; }
+    table.items { width: 100%; border-collapse: collapse; font-size: .9rem; margin-bottom: .6rem; }
+    table.items th { text-align: left; color: #94a3b8; font-weight: 600; font-size: .75rem; text-transform: uppercase; border-bottom: 1px solid #334155; padding: .3rem 0; }
+    table.items td { border-bottom: 1px solid #0f172a; padding: .4rem 0; vertical-align: top; overflow-wrap: anywhere; }
+    table.items .num { text-align: right; padding-left: 12px; white-space: nowrap; }
+    table.items tfoot td { border-bottom: 0; font-weight: 700; padding-top: .5rem; }
+    code.id { font-family: Consolas, "Courier New", monospace; font-size: .75rem; color: #cbd5e1; overflow-wrap: anywhere; }
+    .actions { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; align-items: center; }
+    .btn { display: inline-block; padding: .55rem 1rem; border: 0; border-radius: .4rem; background: #38bdf8; color: #0f172a; font-weight: 600; font-size: .9rem; text-decoration: none; cursor: pointer; }
+    .btn.secondary { background: #334155; color: #e2e8f0; }
+    .btn.warn { background: #f59e0b; color: #0f172a; }
+    .actions form { margin: 0; }
+    .muted { color: #94a3b8; font-size: .8rem; }
+    a.ext { color: #38bdf8; font-weight: 600; text-decoration: none; }
+</style>
+
+<a class="back" href="@Url.Action("Received", "Payments")">‹ Payments received</a>
+
+@if (Model == null)
+{
+    <h1>Order not found</h1>
+    if (ViewBag.FlashError != null)
+    {
+        <div class="flash err">@ViewBag.FlashError</div>
+    }
+    <p class="muted">There is no order with that number. Check the link or go back to Payments received.</p>
+}
+else
+{
+    var st = (Model.Status ?? "").ToLowerInvariant();
+    var stClass = st == "paid" ? "st-paid" : st == "cancelled" ? "st-cancelled" : st == "expired" ? "st-expired" : "st-pending";
+
+    <div class="head">
+        <h1>Order #@Model.OrderId</h1>
+        <span class="badge @stClass">@(string.IsNullOrEmpty(Model.Status) ? "Unknown" : Model.Status)</span>
+        <span class="badge @(Model.Livemode ? "mode-live" : "mode-test")">@(Model.Livemode ? "Live" : "Test")</span>
+    </div>
+
+    if (ViewBag.Flash != null)
+    {
+        <div class="flash ok" role="status">@ViewBag.Flash</div>
+    }
+    if (ViewBag.FlashError != null)
+    {
+        <div class="flash err" role="alert">@ViewBag.FlashError</div>
+    }
+
+    <div class="actions">
+        @if (Model.IsPaid)
+        {
+            <a class="btn" href="@Model.ReceiptUrl" target="_blank" rel="noopener">View receipt</a>
+            <button type="button" class="btn secondary" id="copyLink" data-url="@Model.ReceiptUrl">Copy receipt link</button>
+        }
+        else
+        {
+            <span class="muted">The public receipt is only available for paid orders.</span>
+        }
+        @if (Model.CanResendReceipt)
+        {
+            using (Html.BeginForm("ResendReceipt", "Payments", FormMethod.Post, new { id = "resendForm" }))
+            {
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@Model.OrderId" />
+                <button type="submit" class="btn warn" data-email="@Model.CustomerEmail">Resend receipt email</button>
+            }
+        }
+        <span class="muted" id="copyMsg" aria-live="polite"></span>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h2>Customer</h2>
+            <dl>
+                <dt>Name</dt><dd>@dash(Model.CustomerName)</dd>
+                <dt>Email</dt><dd>@dash(Model.CustomerEmail)</dd>
+                <dt>Country</dt><dd>@dash(Model.CustomerCountry)</dd>
+            </dl>
+        </div>
+
+        <div class="card">
+            <h2>Dates (AST)</h2>
+            <dl>
+                <dt>Created</dt><dd>@ast(Model.CreatedAtUtc)</dd>
+                <dt>Paid</dt><dd>@ast(Model.PaidAtUtc)</dd>
+                @if (Model.CancelledAtUtc.HasValue)
+                {
+                    <dt>@(st == "expired" ? "Expired" : "Cancelled")</dt><dd>@ast(Model.CancelledAtUtc)</dd>
+                }
+                <dt>Receipt email</dt><dd>@(Model.ReceiptEmailSentAtUtc.HasValue ? ast(Model.ReceiptEmailSentAtUtc) : "Not sent")</dd>
+                @if (Model.UpdatedAtUtc.HasValue)
+                {
+                    <dt>Updated</dt><dd>@ast(Model.UpdatedAtUtc)</dd>
+                }
+            </dl>
+        </div>
+
+        <div class="card">
+            <h2>Payment</h2>
+            <table class="items">
+                <thead>
+                    <tr><th>Item</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th></tr>
+                </thead>
+                <tbody>
+                @if (Model.Lines.Count == 0)
+                {
+                    <tr><td colspan="4" class="muted">No items.</td></tr>
+                }
+                @foreach (var l in Model.Lines)
+                {
+                    <tr>
+                        <td>@l.Name</td>
+                        <td class="num">@l.Quantity.ToString(en)</td>
+                        <td class="num">@Money.Format(l.UnitAmount)</td>
+                        <td class="num">@Money.Format(l.LineTotal)</td>
+                    </tr>
+                }
+                </tbody>
+                <tfoot>
+                    <tr><td colspan="3">Total (@Model.Currency.ToUpperInvariant())</td><td class="num">@Money.Format(Model.AmountTotal)</td></tr>
+                </tfoot>
+            </table>
+            <dl>
+                <dt>Status</dt><dd><span class="badge @stClass">@dash(Model.Status)</span></dd>
+                <dt>Card</dt><dd>@(string.IsNullOrEmpty(Model.CardBrand) && string.IsNullOrEmpty(Model.CardLast4) ? "-" : (Model.CardBrand ?? "") + " •••• " + (Model.CardLast4 ?? ""))</dd>
+                <dt>Method</dt><dd>@dash(Model.PaymentMethodType)</dd>
+                <dt>Language</dt><dd>@Model.Language.ToUpperInvariant() <span class="muted">(@Lang.DisplayName(Model.Language))</span></dd>
+                <dt>Mode</dt><dd><span class="badge @(Model.Livemode ? "mode-live" : "mode-test")">@(Model.Livemode ? "Live" : "Test")</span></dd>
+                @if (!string.IsNullOrEmpty(Model.FailureCode) || !string.IsNullOrEmpty(Model.FailureMessage))
+                {
+                    <dt>Failure</dt><dd>@dash(Model.FailureCode) @(string.IsNullOrEmpty(Model.FailureMessage) ? "" : "– " + Model.FailureMessage)</dd>
+                }
+            </dl>
+        </div>
+
+        <div class="card">
+            <h2>Stripe</h2>
+            <dl>
+                <dt>Dashboard</dt>
+                <dd>
+                    @if (Model.StripeDashboardUrl != null)
+                    {
+                        <a class="ext" href="@Model.StripeDashboardUrl" target="_blank" rel="noopener noreferrer">@Model.StripeDashboardLabel ↗</a>
+                    }
+                    else
+                    {
+                        <span class="muted">No Stripe payment or session for this order.</span>
+                    }
+                </dd>
+                <dt>Session</dt><dd><code class="id">@dash(Model.StripeSessionId)</code></dd>
+                <dt>Payment intent</dt><dd><code class="id">@dash(Model.StripePaymentIntentId)</code></dd>
+                <dt>Customer</dt><dd><code class="id">@dash(Model.StripeCustomerId)</code></dd>
+                <dt>Public ID</dt><dd><code class="id">@Model.PublicOrderId</code></dd>
+            </dl>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            var btn = document.getElementById('copyLink');
+            var msg = document.getElementById('copyMsg');
+            if (btn) {
+                btn.addEventListener('click', function () {
+                    var url = btn.getAttribute('data-url');
+                    function done(ok) { msg.textContent = ok ? 'Receipt link copied.' : 'Could not copy. Link: ' + url; }
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(url).then(function () { done(true); }, function () { done(fallback(url)); });
+                    } else {
+                        done(fallback(url));
+                    }
+                });
+            }
+            function fallback(text) {
+                var ta = document.createElement('textarea');
+                ta.value = text;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                var ok = false;
+                try { ok = document.execCommand('copy'); } catch (e) { }
+                document.body.removeChild(ta);
+                return ok;
+            }
+            var form = document.getElementById('resendForm');
+            if (form) {
+                form.addEventListener('submit', function (e) {
+                    var email = form.querySelector('button').getAttribute('data-email');
+                    if (!window.confirm('Send the receipt email again to ' + email + '?')) e.preventDefault();
+                });
+            }
+        })();
+    </script>
+}

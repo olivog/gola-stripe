@@ -1,4 +1,4 @@
-@model GolaStripe.Models.ReceiptVm
+﻿@model GolaStripe.Models.ReceiptVm
 @* Recibo compartido por Success.cshtml y Receipt.cshtml. Montos: USD fijo en-US (Money.Format). *@
 @{
     var isPaid = string.Equals(Model.Status, "Paid", StringComparison.OrdinalIgnoreCase);
@@ -46,7 +46,7 @@
         <thead>
             <tr>
                 <th>@Strings.Col_Description</th>
-                <th class="num">@Strings.Col_Qty</th>
+                <th class="num qty">@Strings.Col_Qty</th>
                 <th class="num">@Strings.Col_Price</th>
                 <th class="num">@Strings.Col_Amount</th>
             </tr>
@@ -58,7 +58,7 @@
             {
                 <tr>
                     <td>@line.Name</td>
-                    <td class="num">@line.Quantity</td>
+                    <td class="num qty">@line.Quantity</td>
                     <td class="num">@Money.Format(line.UnitAmount)</td>
                     <td class="num">@Money.Format(line.LineTotal)</td>
                 </tr>
@@ -75,6 +75,6 @@
 
     <div class="total-row">
         <span>@Strings.Label_Total (@Model.CurrencyUpper)</span>
-        <span>@Money.Format(Model.AmountTotal)</span>
+        <span style="white-space:nowrap">@Money.Format(Model.AmountTotal)</span>
     </div>
 </div>

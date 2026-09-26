@@ -1,0 +1,243 @@
+﻿@model GolaStripe.Models.ReceivedPageVm
+@{
+    ViewBag.Title = "Payments received";
+    ViewBag.NoIndex = true;
+    var en = Lang.CultureFor("en");
+    // Link que conserva los filtros actuales y cambia solo lo indicado
+    Func<string, string, string, string, int, string> link = (range, from, to, q, pg) =>
+        Url.Action("Received", "Payments", new
+        {
+            range = string.IsNullOrEmpty(range) ? null : range,
+            from = string.IsNullOrEmpty(from) ? null : from,
+            to = string.IsNullOrEmpty(to) ? null : to,
+            q = string.IsNullOrEmpty(q) ? null : q,
+            page = pg > 1 ? (int?)pg : null
+        });
+    var presets = new[] { new[] { "today", "Today" }, new[] { "7d", "Last 7 days" }, new[] { "month", "This month" }, new[] { "all", "All" } };
+}
+
+<style>
+    main { max-width: 64rem; }
+    .filters {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: .5rem;
+        padding: .75rem;
+        margin-bottom: 1rem;
+    }
+    .presets { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .75rem; }
+    .presets a {
+        padding: .3rem .7rem;
+        border-radius: 999px;
+        background: #0f172a;
+        border: 1px solid #334155;
+        color: #cbd5e1;
+        text-decoration: none;
+        font-size: .85rem;
+    }
+    .presets a.active { background: #38bdf8; border-color: #38bdf8; color: #0f172a; font-weight: 700; }
+    .filter-row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: flex-end; }
+    .filter-row label { display: block; font-size: .75rem; color: #94a3b8; margin-bottom: .15rem; }
+    .filter-row input {
+        padding: .4rem .5rem;
+        border-radius: .35rem;
+        border: 1px solid #334155;
+        background: #0f172a;
+        color: #e2e8f0;
+        font-size: .9rem;
+        box-sizing: border-box;
+    }
+    .filter-row .grow { flex: 1 1 12rem; }
+    .filter-row .grow input { width: 100%; }
+    .filter-row button, .filter-row a.clear {
+        padding: .45rem .9rem;
+        border: 0;
+        border-radius: .4rem;
+        background: #38bdf8;
+        color: #0f172a;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: .9rem;
+        text-decoration: none;
+    }
+    .filter-row a.clear { background: #334155; color: #e2e8f0; }
+    .summary { display: flex; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem; }
+    .summary div {
+        flex: 1 1 10rem;
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: .5rem;
+        padding: .6rem .8rem;
+    }
+    .summary .k { font-size: .75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; }
+    .summary .v { font-size: 1.35rem; font-weight: 700; color: #e2e8f0; }
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table.paid { width: 100%; border-collapse: collapse; font-size: .85rem; min-width: 46rem; }
+    table.paid th {
+        text-align: left;
+        color: #94a3b8;
+        font-weight: 600;
+        border-bottom: 1px solid #334155;
+        padding: .45rem .5rem .45rem 0;
+        white-space: nowrap;
+    }
+    table.paid td { border-bottom: 1px solid #1e293b; padding: .5rem .5rem .5rem 0; vertical-align: top; }
+    table.paid .num { text-align: right; white-space: nowrap; }
+    table.paid .nowrap { white-space: nowrap; }
+    .muted { color: #94a3b8; font-size: .8rem; }
+    .tag { display: inline-block; font-size: .65rem; padding: 0 .35rem; border-radius: .25rem; background: #334155; color: #cbd5e1; vertical-align: middle; }
+    .tag.test { background: #854d0e; color: #fef9c3; }
+    a.rcpt { color: #38bdf8; font-weight: 600; text-decoration: none; }
+    a.ord { color: #38bdf8; font-size: .8rem; font-weight: 600; text-decoration: none; }
+    tr.row-link { cursor: pointer; }
+    tr.row-link:hover td { background: #16213a; }
+    .pager { display: flex; gap: .75rem; align-items: center; margin-top: 1rem; font-size: .9rem; }
+    .pager a { color: #38bdf8; text-decoration: none; font-weight: 600; }
+    .err { color: #f87171; }
+</style>
+
+<h1>Payments received</h1>
+
+<div class="filters">
+    <div class="presets">
+        @foreach (var p in presets)
+        {
+            <a href="@link(p[0], null, null, Model.Q, 1)" class="@(Model.Range == p[0] ? "active" : "")">@p[1]</a>
+        }
+    </div>
+
+    <form method="get" action="@Url.Action("Received", "Payments")" class="filter-row">
+        @if (Model.Range != "custom")
+        {
+            <input type="hidden" name="range" value="@Model.Range" />
+        }
+        <div>
+            <label for="from">From (AST)</label>
+            <input type="date" id="from" name="from" value="@Model.From" />
+        </div>
+        <div>
+            <label for="to">To (AST)</label>
+            <input type="date" id="to" name="to" value="@Model.To" />
+        </div>
+        <div class="grow">
+            <label for="q">Search name, email or product</label>
+            <input type="search" id="q" name="q" maxlength="100" value="@Model.Q" />
+        </div>
+        <div>
+            <button type="submit">Filter</button>
+            <a class="clear" href="@Url.Action("Received", "Payments")">Clear</a>
+        </div>
+    </form>
+    @if (!string.IsNullOrEmpty(Model.Error))
+    {
+        <p class="err">@Model.Error</p>
+    }
+</div>
+
+<div class="summary">
+    <div>
+        <div class="k">Payments</div>
+        <div class="v">@Model.TotalCount.ToString("N0", en)</div>
+    </div>
+    <div>
+        <div class="k">Total (USD)</div>
+        <div class="v">@Money.Format(Model.TotalAmount)</div>
+    </div>
+    <div>
+        <div class="k">Period</div>
+        <div class="v" style="font-size:1rem">@Model.RangeLabel</div>
+        @if (!string.IsNullOrEmpty(Model.Q))
+        {
+            <div class="muted">matching “@Model.Q”</div>
+        }
+    </div>
+</div>
+
+@if (Model.Rows.Count == 0)
+{
+    <p class="muted">No payments found for this filter.</p>
+}
+else
+{
+    <div class="table-wrap">
+        <table class="paid">
+            <thead>
+                <tr>
+                    <th>Paid (AST)</th>
+                    <th>Customer</th>
+                    <th>Email</th>
+                    <th>Product</th>
+                    <th class="num">Amount</th>
+                    <th>Lang</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var r in Model.Rows)
+            {
+                <tr class="row-link" data-href="@Url.Action("Order", "Payments", new { id = r.OrderId })">
+                    <td class="nowrap">
+                        @Lang.FormatAst(r.WhenUtc, en)
+                        @if (!r.PaidAtUtc.HasValue)
+                        {
+                            <br /><span class="muted">(created)</span>
+                        }
+                        <br /><a class="ord" href="@Url.Action("Order", "Payments", new { id = r.OrderId })">#@r.OrderId</a>
+                    </td>
+                    <td>@(string.IsNullOrEmpty(r.CustomerName) ? "-" : r.CustomerName)</td>
+                    <td>@(string.IsNullOrEmpty(r.CustomerEmail) ? "-" : r.CustomerEmail)</td>
+                    <td>
+                        @(r.Product ?? "-")
+                        @if (r.ItemCount > 1)
+                        {
+                            <span class="muted">(+@(r.ItemCount - 1) more)</span>
+                        }
+                    </td>
+                    <td class="num">
+                        @Money.Format(r.AmountTotal)
+                        @if (!r.Livemode)
+                        {
+                            <br /><span class="tag test">TEST</span>
+                        }
+                    </td>
+                    <td><span class="tag">@r.Language.ToUpperInvariant()</span></td>
+                    <td class="nowrap">
+                        <a class="rcpt" href="@Url.Action("Order", "Payments", new { id = r.OrderId })">Details</a>
+                        <span class="muted">·</span>
+                        <a class="rcpt" href="@(Url.Action("Receipt", "Payments") + "?id=" + r.PublicOrderId)" target="_blank" rel="noopener">Receipt</a>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    if (Model.PageCount > 1)
+    {
+        <div class="pager">
+            @if (Model.Page > 1)
+            {
+                <a href="@link(Model.Range == "custom" ? null : Model.Range, Model.From, Model.To, Model.Q, Model.Page - 1)">‹ Newer</a>
+            }
+            <span class="muted">Page @Model.Page of @Model.PageCount</span>
+            @if (Model.Page < Model.PageCount)
+            {
+                <a href="@link(Model.Range == "custom" ? null : Model.Range, Model.From, Model.To, Model.Q, Model.Page + 1)">Older ›</a>
+            }
+        </div>
+    }
+}
+
+<script>
+    // Fila clicable → detalle de la orden (los links internos siguen funcionando normal)
+    (function () {
+        var rows = document.querySelectorAll('tr.row-link');
+        for (var i = 0; i < rows.length; i++) {
+            rows[i].addEventListener('click', function (e) {
+                if (e.target.closest('a')) return;
+                if (window.getSelection && String(window.getSelection()).length > 0) return; // deja seleccionar texto
+                window.location = this.getAttribute('data-href');
+            });
+        }
+    })();
+</script>

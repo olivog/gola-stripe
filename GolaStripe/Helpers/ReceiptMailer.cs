@@ -221,10 +221,11 @@ namespace GolaStripe.Helpers
             sb.Append("<tr><td style=\"padding:0 24px;\">");
             sb.Append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-size:14px;border-collapse:collapse;\">");
             sb.Append("<tr>");
+            // Columnas numéricas: padding-left + nowrap para que no se peguen en móvil (Gmail iOS mostraba "1$4,000.00")
             sb.Append(Th(H(T("Col_Description", c)), "left"));
-            sb.Append(Th(H(T("Col_Qty", c)), "right"));
-            sb.Append(Th(H(T("Col_Price", c)), "right"));
-            sb.Append(Th(H(T("Col_Amount", c)), "right"));
+            sb.Append(Th(H(T("Col_Qty", c)), "right", true, QtyColWidth));
+            sb.Append(Th(H(T("Col_Price", c)), "right", true));
+            sb.Append(Th(H(T("Col_Amount", c)), "right", true));
             sb.Append("</tr>");
             if (r.Lines != null && r.Lines.Count > 0)
             {
@@ -232,9 +233,9 @@ namespace GolaStripe.Helpers
                 {
                     sb.Append("<tr>");
                     sb.Append(Td(H(l.Name), "left"));
-                    sb.Append(Td(H(l.Quantity.ToString(CultureInfo.InvariantCulture)), "right"));
-                    sb.Append(Td(H(Money.Format(l.UnitAmount)), "right"));
-                    sb.Append(Td(H(Money.Format(l.LineTotal)), "right"));
+                    sb.Append(Td(H(l.Quantity.ToString(CultureInfo.InvariantCulture)), "right", true, QtyColWidth));
+                    sb.Append(Td(H(Money.Format(l.UnitAmount)), "right", true));
+                    sb.Append(Td(H(Money.Format(l.LineTotal)), "right", true));
                     sb.Append("</tr>");
                 }
             }
@@ -244,7 +245,7 @@ namespace GolaStripe.Helpers
             }
             sb.Append("<tr>");
             sb.Append("<td colspan=\"3\" style=\"padding:12px 0 0;border-top:2px solid #0f172a;font-size:16px;font-weight:bold;\">" + H(T("Label_Total", c)) + " (" + H(r.CurrencyUpper) + ")</td>");
-            sb.Append("<td align=\"right\" style=\"padding:12px 0 0;border-top:2px solid #0f172a;font-size:16px;font-weight:bold;\">" + H(Money.Format(r.AmountTotal)) + "</td>");
+            sb.Append("<td align=\"right\" style=\"padding:12px 0 0 12px;border-top:2px solid #0f172a;font-size:16px;font-weight:bold;white-space:nowrap;\">" + H(Money.Format(r.AmountTotal)) + "</td>");
             sb.Append("</tr>");
             sb.Append("</table>");
             sb.Append("</td></tr>");
@@ -269,14 +270,26 @@ namespace GolaStripe.Helpers
             return sb.ToString();
         }
 
-        private static string Th(string text, string align)
+        private const int QtyColWidth = 44; // px, columna QTY
+
+        // numeric = columnas QTY / PRICE / AMOUNT: padding-left:12px + white-space:nowrap (separación visible en móvil)
+        private static string Th(string text, string align, bool numeric = false, int widthPx = 0)
         {
-            return "<th align=\"" + align + "\" style=\"padding:8px 0;border-bottom:2px solid #e2e8f0;color:#64748b;font-size:11px;text-transform:uppercase;text-align:" + align + ";\">" + text + "</th>";
+            return "<th align=\"" + align + "\"" + WidthAttr(widthPx) + " style=\"padding:8px 0" + (numeric ? " 8px 12px" : "") + ";"
+                + (numeric ? "white-space:nowrap;" : "") + (widthPx > 0 ? "width:" + widthPx + "px;" : "")
+                + "border-bottom:2px solid #e2e8f0;color:#64748b;font-size:11px;text-transform:uppercase;text-align:" + align + ";\">" + text + "</th>";
         }
 
-        private static string Td(string encodedHtml, string align)
+        private static string Td(string encodedHtml, string align, bool numeric = false, int widthPx = 0)
         {
-            return "<td align=\"" + align + "\" style=\"padding:10px 0;border-bottom:1px solid #f1f5f9;vertical-align:top;\">" + encodedHtml + "</td>";
+            return "<td align=\"" + align + "\"" + WidthAttr(widthPx) + " style=\"padding:10px 0" + (numeric ? " 10px 12px" : "") + ";"
+                + (numeric ? "white-space:nowrap;" : "") + (widthPx > 0 ? "width:" + widthPx + "px;" : "")
+                + "border-bottom:1px solid #f1f5f9;vertical-align:top;\">" + encodedHtml + "</td>";
+        }
+
+        private static string WidthAttr(int widthPx)
+        {
+            return widthPx > 0 ? " width=\"" + widthPx + "\"" : "";
         }
 
         /// <summary>Fecha de pago en AST (UTC-4, Puerto Rico / La Paz, sin horario de verano), formato del idioma de la orden.</summary>

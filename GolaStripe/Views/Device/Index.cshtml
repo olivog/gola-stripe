@@ -1,0 +1,120 @@
+﻿@using GolaStripe.Models
+@model System.Collections.Generic.List<TrustedDevice>
+@{
+    var current = DeviceAuth.Current;
+    var en = Lang.CultureFor("en");
+    Func<string, string> shortUa = ua => string.IsNullOrEmpty(ua) ? "-" : (ua.Length > 60 ? ua.Substring(0, 60) + "…" : ua);
+}
+
+<style>
+    .box { max-width: 60rem; }
+    table.devices { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    table.devices th {
+        text-align: left;
+        color: #94a3b8;
+        font-weight: 600;
+        border-bottom: 1px solid #334155;
+        padding: .4rem .5rem .4rem 0;
+    }
+    table.devices td {
+        border-bottom: 1px solid #1e293b;
+        padding: .5rem .5rem .5rem 0;
+        vertical-align: top;
+    }
+    .ua { color: #94a3b8; font-size: .75rem; }
+    .st-active { color: #4ade80; font-weight: 600; }
+    .st-revoked { color: #f87171; }
+    .me { color: #38bdf8; font-size: .8rem; }
+    button {
+        padding: .35rem .75rem;
+        border: 0;
+        border-radius: .4rem;
+        font-weight: 600;
+        cursor: pointer;
+        background: #334155;
+        color: #e2e8f0;
+    }
+    button.danger { background: #7f1d1d; color: #fee2e2; }
+    .muted { color: #94a3b8; font-size: .85rem; }
+</style>
+
+<div class="box">
+    <h1>Devices</h1>
+    <p class="muted">Trusted devices can open the admin pages without a login. Times are AST.</p>
+    @if (current != null)
+    {
+        <p>This device: <strong>@current.DeviceName</strong></p>
+    }
+
+    @if (!string.IsNullOrEmpty(ViewBag.Message as string))
+    {
+        <p class="ok">@ViewBag.Message</p>
+    }
+
+    <table class="devices">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Created</th>
+                <th>Last seen</th>
+                <th>Last IP</th>
+                <th>User agent</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var d in Model)
+        {
+            var isMe = current != null && current.DeviceId == d.DeviceId;
+            <tr>
+                <td>
+                    @d.DeviceName
+                    @if (isMe)
+                    {
+                        <br /><span class="me">(this device)</span>
+                    }
+                </td>
+                <td>@Lang.FormatAst(d.CreatedAtUtc, en)</td>
+                <td>@(d.LastSeenAtUtc.HasValue ? Lang.FormatAst(d.LastSeenAtUtc.Value, en) : "-")</td>
+                <td>@(d.LastIp ?? "-")</td>
+                <td class="ua" title="@d.UserAgent">@shortUa(d.UserAgent)</td>
+                <td>
+                    @if (d.IsActive)
+                    {
+                        <span class="st-active">Active</span>
+                    }
+                    else
+                    {
+                        <span class="st-revoked">Revoked @Lang.FormatAst(d.RevokedAtUtc.Value, en)</span>
+                    }
+                </td>
+                <td>
+                    @if (d.IsActive)
+                    {
+                        using (Html.BeginForm("Revoke", "Device", FormMethod.Post, isMe
+                            ? (object)new { onsubmit = "return confirm('Revoke THIS device? You will lose admin access on this browser until you enroll it again.');" }
+                            : (object)new { onsubmit = "return confirm('Revoke this device?');" }))
+                        {
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@d.DeviceId" />
+                            <button type="submit" class="danger">Revoke</button>
+                        }
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    @if (current != null)
+    {
+        <h2 style="font-size:1rem;margin-top:2rem;">This device</h2>
+        <p class="muted">Removes the cookie from this browser and revokes "@current.DeviceName".</p>
+        using (Html.BeginForm("Forget", "Device", FormMethod.Post, new { onsubmit = "return confirm('Forget this device? You will lose admin access on this browser until you enroll it again.');" }))
+        {
+            @Html.AntiForgeryToken()
+            <button type="submit" class="danger">Forget this device</button>
+        }
+    }
+</div>

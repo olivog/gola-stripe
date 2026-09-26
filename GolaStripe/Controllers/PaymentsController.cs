@@ -8,6 +8,7 @@ using GolaStripe.Helpers;
 using GolaStripe.Resources;
 using System.IO;
 using System.Diagnostics;
+using System.Globalization;
 
 
 namespace GolaStripe.Controllers
@@ -88,6 +89,7 @@ namespace GolaStripe.Controllers
         // POST /Payments/CreateCheckout
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [ValidateInput(false)] // permite "<" en productName; se muestra siempre HTML-encoded (Razor / HtmlEncode en el email)
         public ActionResult CreateCheckout(string productName, string amountDollars, string customerLang)
         {
             productName = (productName ?? "").Trim();
@@ -123,8 +125,8 @@ namespace GolaStripe.Controllers
 
             const string currency = "usd";
             const int qty = 1;
-            long orderId;
-            Guid publicOrderId;
+            long orderId = 0;
+            Guid publicOrderId = Guid.Empty;
             Stripe.Checkout.Session session;
             try
             {
@@ -171,11 +173,20 @@ namespace GolaStripe.Controllers
                 };
 
                 session = new SessionService().Create(options);
-                GolaPayDb.SetStripeSessionId(orderId, session.Id);
+                GolaPayDb.SetStripeSessionId(orderId, session.Id, session.Livemode);
             }
             catch (Exception ex)
             {
                 Trace.TraceError("CreateCheckout: " + ex);
+
+                // La orden se insertó Pending con StripeSessionId NULL antes de llamar a Stripe:
+                // si algo falló después, no dejarla Pending para siempre.
+                if (orderId > 0)
+                {
+                    try { GolaPayDb.TryMarkOrderExpired(orderId); }
+                    catch (Exception ex2) { Trace.TraceError("CreateCheckout: no se pudo marcar Expired la orden " + orderId + ": " + ex2); }
+                }
+
                 ViewBag.Error = Strings.Err_CreateCheckout + (Request.IsLocal ? " (" + ex.Message + ")" : "");
                 ViewBag.ProductName = productName;
                 ViewBag.AmountDollars = amountDollars;
@@ -195,7 +206,96 @@ namespace GolaStripe.Controllers
         }
 
 
+        // GET /Payments/Received?range=today|7d|month|all&from=yyyy-MM-dd&to=yyyy-MM-dd&q=...&page=N
+        // Admin (protegido por DeviceGateFilter), solo lectura. Fechas del filtro en AST → límites UTC.
+        [HttpGet]
+        [ValidateInput(false)] // permite "<" en q (búsqueda); se muestra HTML-encoded
+        public ActionResult Received(string range, string from, string to, string q, int? page)
+        {
+            var vm = new GolaStripe.Models.ReceivedPageVm();
+            vm.Q = (q ?? "").Trim();
+            if (vm.Q.Length > 100) vm.Q = vm.Q.Substring(0, 100);
+            vm.Page = page.HasValue && page.Value > 0 ? page.Value : 1;
+
+            var today = Ast.TodayAst;
+            DateTime fromAst, toAst;
+            var hasFrom = TryParseDay(from, out fromAst);
+            var hasTo = TryParseDay(to, out toAst);
+
+            if (hasFrom || hasTo)
+            {
+                // Rango personalizado (días AST, "to" incluido)
+                if (hasFrom && hasTo && fromAst > toAst)
+                {
+                    var t = fromAst; fromAst = toAst; toAst = t;
+                }
+                vm.Range = "custom";
+                vm.From = hasFrom ? fromAst.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : null;
+                vm.To = hasTo ? toAst.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : null;
+                vm.FromUtc = hasFrom ? Ast.AstToUtc(fromAst) : (DateTime?)null;
+                vm.ToUtc = hasTo ? Ast.AstToUtc(toAst.AddDays(1)) : (DateTime?)null;
+                vm.RangeLabel = (hasFrom ? fromAst.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) : "…")
+                    + " – " + (hasTo ? toAst.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) : "…");
+            }
+            else
+            {
+                if ((!string.IsNullOrWhiteSpace(from) && !hasFrom) || (!string.IsNullOrWhiteSpace(to) && !hasTo))
+                    vm.Error = "Invalid date. Use the date picker (yyyy-MM-dd).";
+
+                switch ((range ?? "month").Trim().ToLowerInvariant())
+                {
+                    case "today":
+                        vm.Range = "today";
+                        vm.FromUtc = Ast.AstToUtc(today);
+                        vm.ToUtc = Ast.AstToUtc(today.AddDays(1));
+                        vm.RangeLabel = "Today";
+                        break;
+                    case "7d":
+                        vm.Range = "7d";
+                        vm.FromUtc = Ast.AstToUtc(today.AddDays(-6));
+                        vm.ToUtc = Ast.AstToUtc(today.AddDays(1));
+                        vm.RangeLabel = "Last 7 days";
+                        break;
+                    case "all":
+                        vm.Range = "all";
+                        vm.RangeLabel = "All time";
+                        break;
+                    default:
+                        var first = new DateTime(today.Year, today.Month, 1);
+                        vm.Range = "month";
+                        vm.FromUtc = Ast.AstToUtc(first);
+                        vm.ToUtc = Ast.AstToUtc(first.AddMonths(1));
+                        vm.RangeLabel = first.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+                        break;
+                }
+            }
+
+            int totalCount;
+            decimal totalAmount;
+            vm.Rows = GolaPayDb.GetPaidOrders(vm.FromUtc, vm.ToUtc, vm.Q, vm.Page,
+                GolaStripe.Models.ReceivedPageVm.PageSize, out totalCount, out totalAmount);
+            vm.TotalCount = totalCount;
+            vm.TotalAmount = totalAmount;
+
+            // Página fuera de rango → última página
+            if (vm.Page > vm.PageCount && vm.TotalCount > 0)
+            {
+                vm.Page = vm.PageCount;
+                vm.Rows = GolaPayDb.GetPaidOrders(vm.FromUtc, vm.ToUtc, vm.Q, vm.Page,
+                    GolaStripe.Models.ReceivedPageVm.PageSize, out totalCount, out totalAmount);
+            }
+
+            return View(vm);
+        }
+
+        private static bool TryParseDay(string s, out DateTime day)
+        {
+            return DateTime.TryParseExact((s ?? "").Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                DateTimeStyles.None, out day);
+        }
+
         // GET /Payments/Success?session_id=cs_test_...
+        [PublicAccess]
         public ActionResult Success(string session_id)
         {
             ViewBag.SessionId = session_id;
@@ -289,8 +389,110 @@ namespace GolaStripe.Controllers
             return View(receipt);
         }
 
+        // GET /Payments/Order/{id}  (admin, protegido por DeviceGateFilter; solo inglés)
+        [HttpGet]
+        public ActionResult Order(string id)
+        {
+            ViewBag.Title = "Order";
+            ViewBag.NoIndex = true;
+            ViewBag.HideLangSwitch = true;
+            ViewBag.Flash = TempData["OrderFlash"] as string;
+            ViewBag.FlashError = TempData["OrderFlashError"] as string;
+
+            long orderId;
+            GolaStripe.Models.OrderDetailVm vm = null;
+            if (long.TryParse((id ?? "").Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out orderId) && orderId > 0)
+            {
+                try
+                {
+                    vm = GolaPayDb.GetOrderDetail(orderId);
+                }
+                catch (Exception ex)
+                {
+                    Trace.TraceError("Order " + orderId + ": " + ex);
+                    ViewBag.FlashError = "Could not load the order. Try again later.";
+                }
+            }
+
+            if (vm == null)
+            {
+                Response.StatusCode = 404;
+                Response.TrySkipIisCustomErrors = true;
+                ViewBag.Title = "Order not found";
+                return View((GolaStripe.Models.OrderDetailVm)null);
+            }
+
+            ViewBag.Title = "Order #" + vm.OrderId.ToString(CultureInfo.InvariantCulture);
+            vm.ReceiptUrl = GetPublicBaseUrl() + "/Payments/Receipt?id=" + vm.PublicOrderId.ToString()
+                + "&lang=" + Lang.NormalizeOrDefault(vm.Language);
+
+            var dash = "https://dashboard.stripe.com" + (vm.Livemode ? "" : "/test");
+            if (!string.IsNullOrEmpty(vm.StripePaymentIntentId))
+            {
+                vm.StripeDashboardUrl = dash + "/payments/" + Uri.EscapeDataString(vm.StripePaymentIntentId);
+                vm.StripeDashboardLabel = "Open payment in Stripe";
+            }
+            else if (!string.IsNullOrEmpty(vm.StripeSessionId))
+            {
+                vm.StripeDashboardUrl = dash + "/checkout/sessions/" + Uri.EscapeDataString(vm.StripeSessionId);
+                vm.StripeDashboardLabel = "Open checkout session in Stripe";
+            }
+            return View(vm);
+        }
+
+        // POST /Payments/ResendReceipt  (admin) — reenvía el mismo recibo en el idioma de la orden.
+        // No toca ReceiptEmailSentAt (esa columna solo evita que el webhook envíe dos veces).
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult ResendReceipt(long? id)
+        {
+            if (!id.HasValue || id.Value <= 0)
+                return RedirectToAction("Received");
+
+            var orderId = id.Value;
+            try
+            {
+                GolaStripe.Models.ReceiptVm receipt;
+                if (!GolaPayDb.TryGetReceiptByOrderId(orderId, out receipt))
+                {
+                    TempData["OrderFlashError"] = "Order not found.";
+                }
+                else if (!receipt.IsPaid)
+                {
+                    TempData["OrderFlashError"] = "Only paid orders can have their receipt resent.";
+                }
+                else if (string.IsNullOrWhiteSpace(receipt.CustomerEmail))
+                {
+                    TempData["OrderFlashError"] = "This order has no customer email.";
+                }
+                else
+                {
+                    string error;
+                    if (ReceiptMailer.TrySend(receipt, GetPublicBaseUrl(), out error))
+                    {
+                        Trace.TraceInformation("ResendReceipt: orden " + orderId + " reenviada a " + receipt.CustomerEmail
+                            + " (dispositivo " + (DeviceAuth.Current != null ? DeviceAuth.Current.DeviceId.ToString(CultureInfo.InvariantCulture) : "?") + ")");
+                        TempData["OrderFlash"] = "Receipt email sent again to " + receipt.CustomerEmail + ".";
+                    }
+                    else
+                    {
+                        Trace.TraceError("ResendReceipt: orden " + orderId + ": " + error);
+                        TempData["OrderFlashError"] = "Could not send the receipt email: " + error;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Trace.TraceError("ResendReceipt: orden " + orderId + ": " + ex);
+                TempData["OrderFlashError"] = "Could not send the receipt email. Try again later.";
+            }
+
+            return RedirectToAction("Order", new { id = orderId });
+        }
+
         // GET /Payments/Receipt?id={PublicOrderId}  (link del email)
         [HttpGet]
+        [PublicAccess]
         public ActionResult Receipt(string id)
         {
             GolaStripe.Models.ReceiptVm receipt = null;
@@ -321,6 +523,7 @@ namespace GolaStripe.Controllers
         }
 
         // GET /Payments/Cancel?session_id=cs_test_...
+        [PublicAccess]
         public ActionResult Cancel(string session_id)
         {
             ViewBag.SessionId = session_id;
@@ -349,6 +552,7 @@ namespace GolaStripe.Controllers
             return View();
         }
         [HttpPost]
+        [PublicAccess]
         public ActionResult StripeWebhook()
         {
             var json = new StreamReader(Request.InputStream).ReadToEnd();
@@ -478,7 +682,8 @@ namespace GolaStripe.Controllers
                         cardBrand,
                         cardLast4,
                         null,
-                        amountDollars);
+                        amountDollars,
+                        session.Livemode);
 
                     // Recibo por email (una sola vez por orden, aunque Stripe reenvíe el evento).
                     // Si falla no rompe el webhook: se anota en WebhookEvents.ErrorMessage y se devuelve 200.
@@ -507,7 +712,7 @@ namespace GolaStripe.Controllers
                         return new HttpStatusCodeResult(200);
                     }
 
-                    GolaPayDb.TryMarkOrderExpired(orderId.Value);
+                    GolaPayDb.TryMarkOrderExpired(orderId.Value, session.Livemode);
                     GolaPayDb.CompleteWebhookEvent(webhookEventId, orderId, "Processed", null);
                 }
                 else

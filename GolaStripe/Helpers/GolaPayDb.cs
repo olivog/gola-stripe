@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
 using System.Data.SqlClient;
@@ -84,7 +85,8 @@ INSERT INTO dbo.OrderItems (OrderId, Name, Quantity, UnitAmount, Currency)
 VALUES (@orderId, @name, @qty, @unitAmount, @currency);", conn, tx))
                     {
                         cmd.Parameters.Add("@orderId", SqlDbType.BigInt).Value = newOrderId;
-                        cmd.Parameters.Add("@name", SqlDbType.VarChar, 200).Value = itemName;
+                        cmd.Parameters.Add("@name", SqlDbType.NVarChar, DbText.ItemNameMax).Value =
+                            DbText.Fit(itemName, DbText.ItemNameMax, "OrderItems.Name");
                         cmd.Parameters.Add("@qty", SqlDbType.Int).Value = quantity;
                         cmd.Parameters.Add("@unitAmount", SqlDbType.Decimal).Value =
                             Math.Round(amountTotalDollars / quantity, 2, MidpointRounding.AwayFromZero);
@@ -99,15 +101,18 @@ VALUES (@orderId, @name, @qty, @unitAmount, @currency);", conn, tx))
             }
         }
 
-        public static void SetStripeSessionId(long orderId, string stripeSessionId)
+        /// <summary>Guarda el id de la sesión recién creada y su modo (Session.Livemode: cs_live_ → 1, cs_test_ → 0).</summary>
+        public static void SetStripeSessionId(long orderId, string stripeSessionId, bool livemode)
         {
             using (var conn = new SqlConnection(Cs))
             using (var cmd = new SqlCommand(@"
 UPDATE dbo.Orders
-SET StripeSessionId = @sid, UpdatedAt = SYSUTCDATETIME()
+SET StripeSessionId = @sid, Livemode = @live, UpdatedAt = SYSUTCDATETIME()
 WHERE OrderId = @orderId AND Status = 'Pending';", conn))
             {
-                cmd.Parameters.Add("@sid", SqlDbType.VarChar, 128).Value = stripeSessionId;
+                cmd.Parameters.Add("@live", SqlDbType.Bit).Value = livemode;
+                cmd.Parameters.Add("@sid", SqlDbType.VarChar, DbText.StripeIdMax).Value =
+                    DbText.Fit(stripeSessionId, DbText.StripeIdMax, "Orders.StripeSessionId");
                 cmd.Parameters.Add("@orderId", SqlDbType.BigInt).Value = orderId;
                 conn.Open();
                 cmd.ExecuteNonQuery();
@@ -124,12 +129,14 @@ WHERE OrderId = @orderId AND Status = 'Pending';", conn))
     string cardBrand,
     string cardLast4,
     string receiptUrl,
-    decimal amountTotalDollars)
+    decimal amountTotalDollars,
+    bool livemode)
         {
             using (var conn = new SqlConnection(Cs))
             using (var cmd = new SqlCommand(@"
 UPDATE dbo.Orders
 SET Status = 'Paid',
+    Livemode = @live,
     StripePaymentIntentId = @pi,
     CustomerEmail = COALESCE(@email, CustomerEmail),
     CustomerName = COALESCE(@name, CustomerName),
@@ -146,15 +153,25 @@ WHERE OrderId = @orderId
   AND Status IN ('Pending','Paid');", conn))
             {
                 cmd.Parameters.Add("@orderId", SqlDbType.BigInt).Value = orderId;
-                cmd.Parameters.Add("@pi", SqlDbType.VarChar, 64).Value = (object)paymentIntentId ?? DBNull.Value;
-                cmd.Parameters.Add("@email", SqlDbType.VarChar, 320).Value = (object)customerEmail ?? DBNull.Value;
-                cmd.Parameters.Add("@name", SqlDbType.VarChar, 200).Value = (object)customerName ?? DBNull.Value;
-                cmd.Parameters.Add("@country", SqlDbType.Char, 2).Value = (object)customerCountry ?? DBNull.Value;
-                cmd.Parameters.Add("@cus", SqlDbType.VarChar, 64).Value = (object)stripeCustomerId ?? DBNull.Value;
-                cmd.Parameters.Add("@pmType", SqlDbType.VarChar, 40).Value = (object)paymentMethodType ?? DBNull.Value;
-                cmd.Parameters.Add("@brand", SqlDbType.VarChar, 40).Value = (object)cardBrand ?? DBNull.Value;
-                cmd.Parameters.Add("@last4", SqlDbType.Char, 4).Value = (object)cardLast4 ?? DBNull.Value;
-                cmd.Parameters.Add("@receipt", SqlDbType.VarChar, 500).Value = (object)receiptUrl ?? DBNull.Value;
+                cmd.Parameters.Add("@live", SqlDbType.Bit).Value = livemode;
+                cmd.Parameters.Add("@pi", SqlDbType.VarChar, DbText.StripeIdMax).Value =
+                    DbText.FitOrNull(paymentIntentId, DbText.StripeIdMax, "Orders.StripePaymentIntentId");
+                cmd.Parameters.Add("@email", SqlDbType.VarChar, DbText.CustomerEmailMax).Value =
+                    DbText.FitOrNull(customerEmail, DbText.CustomerEmailMax, "Orders.CustomerEmail");
+                cmd.Parameters.Add("@name", SqlDbType.NVarChar, DbText.CustomerNameMax).Value =
+                    DbText.FitOrNull(customerName, DbText.CustomerNameMax, "Orders.CustomerName");
+                cmd.Parameters.Add("@country", SqlDbType.Char, DbText.CountryMax).Value =
+                    DbText.FitOrNull(customerCountry, DbText.CountryMax, "Orders.CustomerCountry");
+                cmd.Parameters.Add("@cus", SqlDbType.VarChar, DbText.StripeIdMax).Value =
+                    DbText.FitOrNull(stripeCustomerId, DbText.StripeIdMax, "Orders.StripeCustomerId");
+                cmd.Parameters.Add("@pmType", SqlDbType.VarChar, DbText.PaymentMethodTypeMax).Value =
+                    DbText.FitOrNull(paymentMethodType, DbText.PaymentMethodTypeMax, "Orders.PaymentMethodType");
+                cmd.Parameters.Add("@brand", SqlDbType.VarChar, DbText.CardBrandMax).Value =
+                    DbText.FitOrNull(cardBrand, DbText.CardBrandMax, "Orders.CardBrand");
+                cmd.Parameters.Add("@last4", SqlDbType.Char, DbText.CardLast4Max).Value =
+                    DbText.FitOrNull(cardLast4, DbText.CardLast4Max, "Orders.CardLast4");
+                cmd.Parameters.Add("@receipt", SqlDbType.VarChar, DbText.ReceiptUrlMax).Value =
+                    DbText.FitOrNull(receiptUrl, DbText.ReceiptUrlMax, "Orders.ReceiptUrl");
                 var pAmt = cmd.Parameters.Add("@amount", SqlDbType.Decimal);
                 pAmt.Precision = 18;
                 pAmt.Scale = 2;
@@ -186,19 +203,43 @@ BEGIN
   VALUES (@eid, @etype, @live, @payload, 'Received');
 END", conn))
             {
-                cmd.Parameters.Add("@eid", SqlDbType.VarChar, 64).Value = stripeEventId;
-                cmd.Parameters.Add("@etype", SqlDbType.VarChar, 100).Value = eventType;
+                cmd.Parameters.Add("@eid", SqlDbType.VarChar, DbText.StripeIdMax).Value =
+                    DbText.Fit(stripeEventId, DbText.StripeIdMax, "WebhookEvents.StripeEventId");
+                cmd.Parameters.Add("@etype", SqlDbType.VarChar, DbText.EventTypeMax).Value =
+                    DbText.Fit(eventType, DbText.EventTypeMax, "WebhookEvents.EventType");
                 cmd.Parameters.Add("@live", SqlDbType.Bit).Value = livemode;
                 cmd.Parameters.Add("@payload", SqlDbType.NVarChar, -1).Value = (object)payloadJson ?? DBNull.Value;
                 conn.Open();
-                using (var r = cmd.ExecuteReader())
+                try
                 {
-                    if (!r.Read()) return false;
-                    var isNew = r.GetBoolean(0);
-                    webhookEventId = r.GetInt64(1);
-                    return isNew;
+                    using (var r = cmd.ExecuteReader())
+                    {
+                        if (!r.Read()) return false;
+                        var isNew = r.GetBoolean(0);
+                        webhookEventId = r.GetInt64(1);
+                        return isNew;
+                    }
+                }
+                catch (SqlException ex) when (IsDuplicateKey(ex))
+                {
+                    // Carrera: Stripe entregó el mismo evento dos veces a la vez y el otro request insertó primero.
+                    using (var cmd2 = new SqlCommand(
+                        "SELECT WebhookEventId FROM dbo.WebhookEvents WHERE StripeEventId = @eid;", conn))
+                    {
+                        cmd2.Parameters.Add("@eid", SqlDbType.VarChar, DbText.StripeIdMax).Value =
+                            DbText.Fit(stripeEventId, DbText.StripeIdMax);
+                        var o = cmd2.ExecuteScalar();
+                        webhookEventId = o == null || o == DBNull.Value ? 0 : Convert.ToInt64(o);
+                    }
+                    return false;
                 }
             }
+        }
+
+        /// <summary>Violación de UNIQUE: 2627 (constraint/índice único) o 2601 (índice único, p. ej. filtrado).</summary>
+        public static bool IsDuplicateKey(SqlException ex)
+        {
+            return ex != null && (ex.Number == 2627 || ex.Number == 2601);
         }
 
         public static void CompleteWebhookEvent(
@@ -219,7 +260,8 @@ WHERE WebhookEventId = @id;", conn))
                 cmd.Parameters.Add("@id", SqlDbType.BigInt).Value = webhookEventId;
                 cmd.Parameters.Add("@status", SqlDbType.VarChar, 20).Value = status;
                 cmd.Parameters.Add("@orderId", SqlDbType.BigInt).Value = (object)relatedOrderId ?? DBNull.Value;
-                cmd.Parameters.Add("@err", SqlDbType.VarChar, 1000).Value = (object)errorMessage ?? DBNull.Value;
+                cmd.Parameters.Add("@err", SqlDbType.VarChar, DbText.ErrorMessageMax).Value =
+                    DbText.FitOrNull(errorMessage, DbText.ErrorMessageMax, "WebhookEvents.ErrorMessage");
                 conn.Open();
                 cmd.ExecuteNonQuery();
             }
@@ -244,7 +286,7 @@ WHERE WebhookEventId = @id;", conn))
             using (var cmd = new SqlCommand(
                 "SELECT OrderId FROM dbo.Orders WHERE StripeSessionId = @sid", conn))
             {
-                cmd.Parameters.Add("@sid", SqlDbType.VarChar, 128).Value = sessionId;
+                cmd.Parameters.Add("@sid", SqlDbType.VarChar, DbText.StripeIdMax).Value = sessionId;
                 conn.Open();
                 var o = cmd.ExecuteScalar();
                 return o == null || o == DBNull.Value ? (long?)null : Convert.ToInt64(o);
@@ -257,7 +299,7 @@ WHERE WebhookEventId = @id;", conn))
             if (string.IsNullOrWhiteSpace(sessionId))
                 return false;
 
-            var p = new SqlParameter("@sid", SqlDbType.VarChar, 128) { Value = sessionId };
+            var p = new SqlParameter("@sid", SqlDbType.VarChar, DbText.StripeIdMax) { Value = sessionId };
             return TryGetReceipt("StripeSessionId = @sid", p, out receipt);
         }
 
@@ -401,7 +443,7 @@ WHERE OrderId = @oid;", conn))
                 using (var cmd = new SqlCommand(@"
 SELECT OrderId, Status FROM dbo.Orders WHERE StripeSessionId = @sid;", conn))
                 {
-                    cmd.Parameters.Add("@sid", SqlDbType.VarChar, 128).Value = sessionId;
+                    cmd.Parameters.Add("@sid", SqlDbType.VarChar, DbText.StripeIdMax).Value = sessionId;
                     using (var r = cmd.ExecuteReader())
                     {
                         if (!r.Read())
@@ -443,21 +485,202 @@ WHERE OrderId = @oid
         }
 
         /// <summary>Pending → Expired (webhook checkout.session.expired). No pisa Cancelled/Paid.</summary>
-        public static bool TryMarkOrderExpired(long orderId)
+        /// <summary>
+        /// Pending → Expired. livemode: Session.Livemode si viene de un evento de Stripe;
+        /// null (p. ej. CreateCheckout falló antes de tener sesión) deja Orders.Livemode como está.
+        /// </summary>
+        public static bool TryMarkOrderExpired(long orderId, bool? livemode = null)
         {
             using (var conn = new SqlConnection(Cs))
             using (var cmd = new SqlCommand(@"
 UPDATE dbo.Orders
 SET Status = 'Expired',
+    Livemode = COALESCE(@live, Livemode),
     CancelledAt = COALESCE(CancelledAt, SYSUTCDATETIME()),
     UpdatedAt = SYSUTCDATETIME()
 WHERE OrderId = @oid
   AND Status = 'Pending';", conn))
             {
                 cmd.Parameters.Add("@oid", SqlDbType.BigInt).Value = orderId;
+                cmd.Parameters.Add("@live", SqlDbType.Bit).Value = livemode.HasValue ? (object)livemode.Value : DBNull.Value;
                 conn.Open();
                 return cmd.ExecuteNonQuery() > 0;
             }
+        }
+
+        /// <summary>
+        /// Órdenes Paid para /Payments/Received (solo lectura). Filtra por COALESCE(PaidAt, CreatedAt) en
+        /// [fromUtc, toUtc) y por texto (nombre, email o nombre del ítem). Devuelve una página + totales del filtro.
+        /// </summary>
+        /// <summary>Detalle admin (/Payments/Order/{id}). null si no existe.</summary>
+        public static GolaStripe.Models.OrderDetailVm GetOrderDetail(long orderId)
+        {
+            using (var conn = new SqlConnection(Cs))
+            {
+                conn.Open();
+                GolaStripe.Models.OrderDetailVm vm;
+                using (var cmd = new SqlCommand(@"
+SELECT OrderId, PublicOrderId, Status, Livemode, Currency, AmountTotal,
+       CustomerEmail, CustomerName, CustomerCountry,
+       StripeCustomerId, StripeSessionId, StripePaymentIntentId,
+       PaymentMethodType, CardBrand, CardLast4, FailureCode, FailureMessage, Language,
+       CreatedAt, UpdatedAt, PaidAt, CancelledAt, ReceiptEmailSentAt
+FROM dbo.Orders
+WHERE OrderId = @oid;", conn))
+                {
+                    cmd.Parameters.Add("@oid", SqlDbType.BigInt).Value = orderId;
+                    using (var r = cmd.ExecuteReader())
+                    {
+                        if (!r.Read())
+                            return null;
+
+                        Func<int, string> str = i => r.IsDBNull(i) ? null : r.GetString(i).Trim();
+                        Func<int, DateTime?> dt = i => r.IsDBNull(i) ? (DateTime?)null : r.GetDateTime(i);
+                        vm = new GolaStripe.Models.OrderDetailVm
+                        {
+                            OrderId = r.GetInt64(0),
+                            PublicOrderId = r.GetGuid(1),
+                            Status = str(2),
+                            Livemode = r.GetBoolean(3),
+                            Currency = str(4) ?? "usd",
+                            AmountTotal = r.GetDecimal(5),
+                            CustomerEmail = str(6),
+                            CustomerName = str(7),
+                            CustomerCountry = str(8),
+                            StripeCustomerId = str(9),
+                            StripeSessionId = str(10),
+                            StripePaymentIntentId = str(11),
+                            PaymentMethodType = str(12),
+                            CardBrand = str(13),
+                            CardLast4 = str(14),
+                            FailureCode = str(15),
+                            FailureMessage = str(16),
+                            Language = (str(17) ?? "en").ToLowerInvariant(),
+                            CreatedAtUtc = r.GetDateTime(18),
+                            UpdatedAtUtc = dt(19),
+                            PaidAtUtc = dt(20),
+                            CancelledAtUtc = dt(21),
+                            ReceiptEmailSentAtUtc = dt(22)
+                        };
+                    }
+                }
+
+                using (var cmd = new SqlCommand(@"
+SELECT Name, Quantity, UnitAmount
+FROM dbo.OrderItems
+WHERE OrderId = @oid
+ORDER BY OrderItemId;", conn))
+                {
+                    cmd.Parameters.Add("@oid", SqlDbType.BigInt).Value = orderId;
+                    using (var r = cmd.ExecuteReader())
+                    {
+                        while (r.Read())
+                        {
+                            vm.Lines.Add(new GolaStripe.Models.OrderDetailLine
+                            {
+                                Name = r.IsDBNull(0) ? "" : r.GetString(0),
+                                Quantity = r.GetInt32(1),
+                                UnitAmount = r.GetDecimal(2)
+                            });
+                        }
+                    }
+                }
+                return vm;
+            }
+        }
+
+        public static List<GolaStripe.Models.ReceivedPaymentRow> GetPaidOrders(
+            DateTime? fromUtc, DateTime? toUtc, string search, int page, int pageSize,
+            out int totalCount, out decimal totalAmount)
+        {
+            totalCount = 0;
+            totalAmount = 0m;
+            var rows = new List<GolaStripe.Models.ReceivedPaymentRow>();
+            if (page < 1) page = 1;
+
+            const string where = @"
+WHERE o.Status = 'Paid'
+  AND (@from IS NULL OR COALESCE(o.PaidAt, o.CreatedAt) >= @from)
+  AND (@to   IS NULL OR COALESCE(o.PaidAt, o.CreatedAt) <  @to)
+  AND (@q IS NULL
+       OR o.CustomerName  LIKE @q ESCAPE '\'
+       OR o.CustomerEmail LIKE @q ESCAPE '\'
+       OR EXISTS (SELECT 1 FROM dbo.OrderItems i
+                  WHERE i.OrderId = o.OrderId AND i.Name LIKE @q ESCAPE '\'))";
+
+            string like = null;
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                // Escapa los comodines de LIKE para que el texto se busque tal cual
+                like = "%" + search.Trim()
+                    .Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_").Replace("[", "\\[") + "%";
+            }
+
+            using (var conn = new SqlConnection(Cs))
+            {
+                conn.Open();
+
+                using (var cmd = new SqlCommand(@"
+SELECT COUNT(*), ISNULL(SUM(o.AmountTotal), 0)
+FROM dbo.Orders o" + where + ";", conn))
+                {
+                    AddPaidOrderFilters(cmd, fromUtc, toUtc, like);
+                    using (var r = cmd.ExecuteReader())
+                    {
+                        if (r.Read())
+                        {
+                            totalCount = r.GetInt32(0);
+                            totalAmount = r.GetDecimal(1);
+                        }
+                    }
+                }
+
+                using (var cmd = new SqlCommand(@"
+SELECT o.OrderId, o.PublicOrderId, o.PaidAt, o.CreatedAt, o.CustomerName, o.CustomerEmail,
+       o.AmountTotal, o.Currency, o.Language, o.Livemode,
+       it.Name, ISNULL(cnt.ItemCount, 0)
+FROM dbo.Orders o
+OUTER APPLY (SELECT TOP 1 i.Name FROM dbo.OrderItems i
+             WHERE i.OrderId = o.OrderId ORDER BY i.OrderItemId) it
+OUTER APPLY (SELECT COUNT(*) AS ItemCount FROM dbo.OrderItems i2
+             WHERE i2.OrderId = o.OrderId) cnt" + where + @"
+ORDER BY COALESCE(o.PaidAt, o.CreatedAt) DESC, o.OrderId DESC
+OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY;", conn))
+                {
+                    AddPaidOrderFilters(cmd, fromUtc, toUtc, like);
+                    cmd.Parameters.Add("@skip", SqlDbType.Int).Value = (page - 1) * pageSize;
+                    cmd.Parameters.Add("@take", SqlDbType.Int).Value = pageSize;
+                    using (var r = cmd.ExecuteReader())
+                    {
+                        while (r.Read())
+                        {
+                            rows.Add(new GolaStripe.Models.ReceivedPaymentRow
+                            {
+                                OrderId = r.GetInt64(0),
+                                PublicOrderId = r.GetGuid(1),
+                                PaidAtUtc = r.IsDBNull(2) ? (DateTime?)null : r.GetDateTime(2),
+                                CreatedAtUtc = r.GetDateTime(3),
+                                CustomerName = r.IsDBNull(4) ? null : r.GetString(4),
+                                CustomerEmail = r.IsDBNull(5) ? null : r.GetString(5),
+                                AmountTotal = r.GetDecimal(6),
+                                Currency = r.IsDBNull(7) ? "usd" : r.GetString(7).Trim(),
+                                Language = r.IsDBNull(8) ? "en" : r.GetString(8).Trim().ToLowerInvariant(),
+                                Livemode = !r.IsDBNull(9) && r.GetBoolean(9),
+                                Product = r.IsDBNull(10) ? null : r.GetString(10),
+                                ItemCount = r.GetInt32(11)
+                            });
+                        }
+                    }
+                }
+            }
+            return rows;
+        }
+
+        private static void AddPaidOrderFilters(SqlCommand cmd, DateTime? fromUtc, DateTime? toUtc, string like)
+        {
+            cmd.Parameters.Add("@from", SqlDbType.DateTime2).Value = (object)fromUtc ?? DBNull.Value;
+            cmd.Parameters.Add("@to", SqlDbType.DateTime2).Value = (object)toUtc ?? DBNull.Value;
+            cmd.Parameters.Add("@q", SqlDbType.NVarChar, 420).Value = (object)like ?? DBNull.Value;
         }
     }
 }

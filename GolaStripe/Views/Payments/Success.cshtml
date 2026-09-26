@@ -1,4 +1,4 @@
-@model GolaStripe.Models.ReceiptVm
+﻿@model GolaStripe.Models.ReceiptVm
 @{
     ViewBag.Title = Strings.Receipt_Title;
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -14,12 +14,12 @@
     {
         <p class="hint">@ViewBag.ErrorDetail</p>
     }
-    <p class="no-print"><a class="btn secondary" href="@Url.Action("Index", "Home")">@Strings.Nav_Back</a></p>
+    <p class="no-print"><a class="btn secondary" href="@DeviceAuth.PublicRedirectUrl">@Strings.Nav_Back</a></p>
 }
 else if (Model == null)
 {
     <p class="err">@Strings.Success_MissingSession</p>
-    <p class="no-print"><a class="btn secondary" href="@Url.Action("Index", "Home")">@Strings.Nav_Back</a></p>
+    <p class="no-print"><a class="btn secondary" href="@DeviceAuth.PublicRedirectUrl">@Strings.Nav_Back</a></p>
 }
 else
 {
@@ -27,7 +27,7 @@ else
 
     <div class="actions no-print">
         <button type="button" class="btn" onclick="window.print()">@Strings.Receipt_SavePdf</button>
-        <a class="btn secondary" href="@Url.Action("Index", "Home")">@Strings.Nav_BackHome</a>
+        <a class="btn secondary" href="@DeviceAuth.PublicRedirectUrl">@Strings.Nav_BackHome</a>
         <p class="hint">@Strings.Receipt_PrintHint</p>
     </div>
 }

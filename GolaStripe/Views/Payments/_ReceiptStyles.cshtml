@@ -1,4 +1,4 @@
-@* Estilos del recibo (pantalla + impresión/PDF). Usado por Success.cshtml y Receipt.cshtml *@
+﻿@* Estilos del recibo (pantalla + impresión/PDF). Usado por Success.cshtml y Receipt.cshtml *@
 <style>
     .receipt-wrap { max-width: 36rem; }
     .receipt {
@@ -30,7 +30,23 @@
         text-transform: uppercase;
         letter-spacing: .04em;
     }
-    table.lines th.num, table.lines td.num { text-align: right; }
+    /* Columnas numéricas (QTY / PRICE / AMOUNT): separación visible en pantallas angostas */
+    table.lines th.num, table.lines td.num { text-align: right; padding-left: 12px; white-space: nowrap; }
+    table.lines th.qty, table.lines td.qty { width: 3rem; }
+    table.lines td:first-child { overflow-wrap: anywhere; word-break: break-word; }
+
+    /* Teléfonos: menos margen alrededor para que las columnas numéricas (nowrap) quepan sin desbordar */
+    @@media (max-width: 480px) {
+        body { margin: 1rem; }
+        .receipt { padding: 1.25rem 1rem; }
+        table.lines { font-size: .875rem; }
+        table.lines th { letter-spacing: 0; }
+        table.lines th.qty, table.lines td.qty { width: auto; }
+    }
+    @@media (max-width: 360px) {
+        body { margin: .5rem; }
+        .receipt { padding: 1rem .75rem; }
+    }
     table.lines td {
         padding: .65rem 0;
         border-bottom: 1px solid #f1f5f9;
@@ -40,6 +56,7 @@
         display: flex;
         justify-content: space-between;
         align-items: baseline;
+        gap: 12px;
         padding-top: .75rem;
         border-top: 2px solid #0f172a;
         font-size: 1.1rem;
