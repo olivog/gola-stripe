@@ -40,6 +40,7 @@ namespace GolaStripe.Helpers
             string currency,
             string itemName,
             int quantity,
+            string language,              // "en" / "es" → Orders.Language (nunca NULL)
             out long orderId,
             out Guid publicOrderId)
         {
@@ -56,16 +57,18 @@ namespace GolaStripe.Helpers
 
                     using (var cmd = new SqlCommand(@"
 INSERT INTO dbo.Orders
-    (SourceAppId, Status, Livemode, Currency, AmountTotal, AmountSubtotal, MetadataJson)
+    (SourceAppId, Status, Livemode, Currency, AmountTotal, AmountSubtotal, MetadataJson, Language)
 OUTPUT INSERTED.OrderId, INSERTED.PublicOrderId
 VALUES
-    (@sourceAppId, 'Pending', 0, @currency, @amountTotal, @amountTotal, @metadata);", conn, tx))
+    (@sourceAppId, 'Pending', 0, @currency, @amountTotal, @amountTotal, @metadata, @language);", conn, tx))
                     {
                         cmd.Parameters.Add("@sourceAppId", SqlDbType.Int).Value = sourceAppId;
                         cmd.Parameters.Add("@currency", SqlDbType.Char, 3).Value = currency.ToLowerInvariant();
                         cmd.Parameters.Add("@amountTotal", SqlDbType.Decimal).Value = amountTotalDollars;
                         cmd.Parameters.Add("@metadata", SqlDbType.NVarChar, -1).Value =
                             "{\"origin\":\"gola-stripe\",\"product\":\"" + itemName.Replace("\"", "") + "\"}";
+                        cmd.Parameters.Add("@language", SqlDbType.VarChar, 10).Value =
+                            GolaStripe.Helpers.Lang.NormalizeOrDefault(language);
 
                         using (var r = cmd.ExecuteReader())
                         {
@@ -288,7 +291,8 @@ WHERE WebhookEventId = @id;", conn))
                 GolaStripe.Models.ReceiptVm vm = null;
                 using (var cmd = new SqlCommand(@"
 SELECT OrderId, PublicOrderId, Status, CustomerEmail, CustomerName, CustomerCountry,
-       Currency, AmountTotal, CardBrand, CardLast4, PaidAt, StripeSessionId, ReceiptEmailSentAt
+       Currency, AmountTotal, CardBrand, CardLast4, PaidAt, StripeSessionId, ReceiptEmailSentAt,
+       Language
 FROM dbo.Orders
 WHERE " + whereSql + ";", conn))
                 {
@@ -312,7 +316,8 @@ WHERE " + whereSql + ";", conn))
                             CardLast4 = r.IsDBNull(9) ? null : r.GetString(9),
                             PaidAtUtc = r.IsDBNull(10) ? (DateTime?)null : r.GetDateTime(10),
                             StripeSessionId = r.IsDBNull(11) ? null : r.GetString(11),
-                            ReceiptEmailSentAtUtc = r.IsDBNull(12) ? (DateTime?)null : r.GetDateTime(12)
+                            ReceiptEmailSentAtUtc = r.IsDBNull(12) ? (DateTime?)null : r.GetDateTime(12),
+                            Language = r.IsDBNull(13) ? "en" : r.GetString(13).Trim().ToLowerInvariant()
                         };
                     }
                 }

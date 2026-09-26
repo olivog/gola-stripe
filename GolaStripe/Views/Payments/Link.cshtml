@@ -1,8 +1,9 @@
-@{
-    ViewBag.Title = "Link de pago";
+﻿@{
+    ViewBag.Title = Strings.Link_Title;
+    ViewBag.HideLangSwitch = true; // resultado de un POST: cambiar idioma aquí perdería el link
     var url = ViewBag.CheckoutUrl as string;
-    var money = System.Globalization.CultureInfo.GetCultureInfo("en-US");
     var amount = ViewBag.AmountDollars is decimal ? (decimal)ViewBag.AmountDollars : Convert.ToDecimal(ViewBag.AmountDollars);
+    var customerLang = Lang.NormalizeOrDefault(ViewBag.CustomerLang as string);
 }
 
 <style>
@@ -54,33 +55,37 @@
 </style>
 
 <div class="box">
-    <h1>Link de pago listo</h1>
-    <p class="ok">Orden Pending creada. Copia el link y envíaselo al cliente.</p>
+    <h1>@Strings.Link_Heading</h1>
+    <p class="ok">@Strings.Link_Created</p>
 
     <div class="card">
-        <p class="meta"><strong>Orden:</strong> #@ViewBag.OrderId</p>
-        <p class="meta"><strong>Producto:</strong> @ViewBag.ProductName</p>
-        <p class="meta"><strong>Monto:</strong> @amount.ToString("C", money) @ViewBag.Currency</p>
-        <p class="meta"><strong>Estado:</strong> Pending</p>
+        <p class="meta"><strong>@Strings.Label_Order:</strong> #@ViewBag.OrderId</p>
+        <p class="meta"><strong>@Strings.Label_Product:</strong> @ViewBag.ProductName</p>
+        <p class="meta"><strong>@Strings.Label_Amount:</strong> @Money.Format(amount) @ViewBag.Currency</p>
+        <p class="meta"><strong>@Strings.Label_Status:</strong> @Lang.StatusLabel("Pending")</p>
+        <p class="meta"><strong>@Strings.New_CustomerLanguage:</strong> @Lang.DisplayName(customerLang)</p>
 
         <div class="link-row">
             <input id="checkoutUrl" type="text" readonly value="@url" onclick="this.select();" />
-            <button type="button" class="btn" id="btnCopy">Copiar link</button>
+            <button type="button" class="btn" id="btnCopy">@Strings.Link_Copy</button>
         </div>
         <p id="copyMsg"></p>
     </div>
 
     <p>
-        <a class="btn secondary" href="@url" target="_blank" rel="noopener">Abrir Checkout</a>
-        <a class="btn secondary" href="@Url.Action("New", "Payments")">Crear otro</a>
-        <a class="btn secondary" href="@Url.Action("Index", "Home")">Inicio</a>
+        <a class="btn secondary" href="@url" target="_blank" rel="noopener">@Strings.Link_OpenCheckout</a>
+        <a class="btn secondary" href="@Url.Action("New", "Payments")">@Strings.Link_CreateAnother</a>
+        <a class="btn secondary" href="@Url.Action("Index", "Home")">@Strings.Nav_Home</a>
     </p>
 
-    <p class="hint">El link es de Stripe Checkout (Test). Si el cliente cancela, la orden pasa a Cancelled; si la sesión expira, a Expired.</p>
+    <p class="hint">@Strings.Link_Hint</p>
+    <p class="hint">@Strings.Link_LangHint</p>
 </div>
 
 <script>
 (function () {
+    var txtCopied = @Html.Raw(HttpUtility.JavaScriptStringEncode(Strings.Link_Copied, true));
+    var txtFallback = @Html.Raw(HttpUtility.JavaScriptStringEncode(Strings.Link_CopyFallback, true));
     var input = document.getElementById('checkoutUrl');
     var btn = document.getElementById('btnCopy');
     var msg = document.getElementById('copyMsg');
@@ -89,13 +94,13 @@
     btn.addEventListener('click', function () {
         var text = input.value;
         function ok() {
-            msg.textContent = 'Copiado.';
+            msg.textContent = txtCopied;
             setTimeout(function () { msg.textContent = ''; }, 2000);
         }
         function fail() {
             input.focus();
             input.select();
-            msg.textContent = 'Selecciona y copia con Ctrl+C.';
+            msg.textContent = txtFallback;
         }
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(ok).catch(fail);

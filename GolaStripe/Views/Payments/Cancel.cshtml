@@ -1,5 +1,5 @@
-@{
-    ViewBag.Title = "Pago cancelado";
+﻿@{
+    ViewBag.Title = Strings.Cancel_Title;
     var status = ViewBag.OrderStatus as string;
     var orderId = ViewBag.OrderId as long?;
     var justCancelled = ViewBag.JustCancelled as bool? == true;
@@ -35,12 +35,16 @@
 </style>
 
 <div class="box">
-    <h1>Pago cancelado</h1>
-    <p>No se cobró nada. Saliste del Checkout o cancelaste el pago.</p>
+    <h1>@Strings.Cancel_Title</h1>
+    <p>@Strings.Cancel_Body</p>
 
     @if (!string.IsNullOrEmpty(ViewBag.Error as string))
     {
         <p style="color:#f87171">@ViewBag.Error</p>
+        if (!string.IsNullOrEmpty(ViewBag.ErrorDetail as string))
+        {
+            <p class="muted">@ViewBag.ErrorDetail</p>
+        }
     }
     else if (orderId != null)
     {
@@ -50,36 +54,36 @@
         else if (string.Equals(status, "Expired", StringComparison.OrdinalIgnoreCase)) { badgeClass = "expired"; }
 
         <p>
-            Orden #@orderId
+            @string.Format(Strings.Receipt_OrderNumber, orderId)
             @if (!string.IsNullOrEmpty(status))
             {
-                <span class="badge @badgeClass">@status</span>
+                <span class="badge @badgeClass">@Lang.StatusLabel(status)</span>
             }
         </p>
         if (justCancelled)
         {
-            <p class="muted">La orden pasó de Pending a Cancelled.</p>
+            <p class="muted">@Strings.Cancel_JustCancelled</p>
         }
         else if (string.Equals(status, "Cancelled", StringComparison.OrdinalIgnoreCase))
         {
-            <p class="muted">Esta orden ya estaba cancelada.</p>
+            <p class="muted">@Strings.Cancel_AlreadyCancelled</p>
         }
         else if (string.Equals(status, "Paid", StringComparison.OrdinalIgnoreCase))
         {
-            <p class="muted">Esta orden ya figura como pagada (no se modificó).</p>
+            <p class="muted">@Strings.Cancel_AlreadyPaid</p>
         }
         else if (string.Equals(status, "Pending", StringComparison.OrdinalIgnoreCase))
         {
-            <p class="muted">Sigue Pending; si la sesión de Stripe expira, pasará a Expired por webhook.</p>
+            <p class="muted">@Strings.Cancel_StillPending</p>
         }
     }
     else if (!string.IsNullOrEmpty(ViewBag.SessionId as string))
     {
-        <p class="muted">No encontramos una orden para esta sesión.</p>
+        <p class="muted">@Strings.Cancel_NotFound</p>
     }
 
     <p>
-        <a class="btn" href="@Url.Action("New", "Payments")">Intentar de nuevo</a>
-        <a class="btn secondary" href="@Url.Action("Index", "Home")">Inicio</a>
+        <a class="btn" href="@Url.Action("New", "Payments")">@Strings.Cancel_TryAgain</a>
+        <a class="btn secondary" href="@Url.Action("Index", "Home")">@Strings.Nav_Home</a>
     </p>
 </div>

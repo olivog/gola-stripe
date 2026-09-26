@@ -1,57 +1,54 @@
 @model GolaStripe.Models.ReceiptVm
-@* Recibo compartido por Success.cshtml y Receipt.cshtml *@
+@* Recibo compartido por Success.cshtml y Receipt.cshtml. Montos: USD fijo en-US (Money.Format). *@
 @{
-    var money = System.Globalization.CultureInfo.GetCultureInfo("en-US");
-    var isPaid = string.Equals(Model.Status, "Paid", StringComparison.OrdinalIgnoreCase)
-              || string.Equals(Model.Status, "paid", StringComparison.OrdinalIgnoreCase);
+    var isPaid = string.Equals(Model.Status, "Paid", StringComparison.OrdinalIgnoreCase);
 }
 
 <div class="receipt" id="receipt">
     <img class="receipt-logo" src="~/Content/images/gola-logo.png" alt="Gola" />
-    <h1 class="receipt-title">Recibo de pago</h1>
+    <h1 class="receipt-title">@Strings.Receipt_Title</h1>
     <p class="receipt-sub">
-        <span class="badge @(isPaid ? "" : "pending")">@(Model.Status ?? "—")</span>
+        <span class="badge @(isPaid ? "" : "pending")">@Lang.StatusLabel(Model.Status)</span>
         @if (Model.OrderId > 0)
         {
-            <text> · Orden #@Model.OrderId</text>
+            <text> · @string.Format(Strings.Receipt_OrderNumber, Model.OrderId)</text>
         }
     </p>
 
     <div class="receipt-meta">
         @if (!string.IsNullOrEmpty(Model.CustomerName))
         {
-            <div><strong>Cliente:</strong> @Model.CustomerName</div>
+            <div><strong>@Strings.Label_Customer:</strong> @Model.CustomerName</div>
         }
         @if (!string.IsNullOrEmpty(Model.CustomerEmail))
         {
-            <div><strong>Email:</strong> @Model.CustomerEmail</div>
+            <div><strong>@Strings.Label_Email:</strong> @Model.CustomerEmail</div>
         }
         @if (!string.IsNullOrEmpty(Model.CustomerCountry))
         {
-            <div><strong>País:</strong> @Model.CustomerCountry</div>
+            <div><strong>@Strings.Label_Country:</strong> @Model.CustomerCountry</div>
         }
         @if (Model.PaidAtUtc.HasValue)
         {
-            var local = Model.PaidAtUtc.Value.AddHours(-4); // America/La_Paz (UTC-4)
-            <div><strong>Pagado:</strong> @local.ToString("dd/MM/yyyy HH:mm") AST</div>
+            <div><strong>@Strings.Label_PaidOn:</strong> @Lang.FormatAst(Model.PaidAtUtc.Value, null)</div>
         }
         @if (!string.IsNullOrEmpty(Model.CardBrand) && !string.IsNullOrEmpty(Model.CardLast4))
         {
-            <div><strong>Tarjeta:</strong> @Model.CardBrand ···· @Model.CardLast4</div>
+            <div><strong>@Strings.Label_Card:</strong> @Model.CardBrand •••• @Model.CardLast4</div>
         }
         @if (Model.PublicOrderId != Guid.Empty)
         {
-            <div><strong>Ref:</strong> <code style="font-size:.75rem">@Model.PublicOrderId</code></div>
+            <div><strong>@Strings.Label_Ref:</strong> <code style="font-size:.75rem">@Model.PublicOrderId</code></div>
         }
     </div>
 
     <table class="lines">
         <thead>
             <tr>
-                <th>Descripción</th>
-                <th class="num">Cant.</th>
-                <th class="num">Precio</th>
-                <th class="num">Importe</th>
+                <th>@Strings.Col_Description</th>
+                <th class="num">@Strings.Col_Qty</th>
+                <th class="num">@Strings.Col_Price</th>
+                <th class="num">@Strings.Col_Amount</th>
             </tr>
         </thead>
         <tbody>
@@ -62,22 +59,22 @@
                 <tr>
                     <td>@line.Name</td>
                     <td class="num">@line.Quantity</td>
-                    <td class="num">@line.UnitAmount.ToString("C", money)</td>
-                    <td class="num">@line.LineTotal.ToString("C", money)</td>
+                    <td class="num">@Money.Format(line.UnitAmount)</td>
+                    <td class="num">@Money.Format(line.LineTotal)</td>
                 </tr>
             }
         }
         else
         {
             <tr>
-                <td colspan="4">Sin ítems</td>
+                <td colspan="4">@Strings.Receipt_NoItems</td>
             </tr>
         }
         </tbody>
     </table>
 
     <div class="total-row">
-        <span>Total (@Model.CurrencyUpper)</span>
-        <span>@Model.AmountTotal.ToString("C", money)</span>
+        <span>@Strings.Label_Total (@Model.CurrencyUpper)</span>
+        <span>@Money.Format(Model.AmountTotal)</span>
     </div>
 </div>

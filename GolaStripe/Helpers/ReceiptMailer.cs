@@ -18,7 +18,12 @@ namespace GolaStripe.Helpers
     /// </summary>
     public static class ReceiptMailer
     {
-        private static readonly CultureInfo Money = CultureInfo.GetCultureInfo("en-US");
+        // Montos: siempre USD en-US (Money.Format). Textos/fechas: idioma de la orden (Orders.Language),
+        // porque el email sale del webhook y no hay navegador/cookie.
+        private static string T(string key, CultureInfo c)
+        {
+            return Lang.Get(key, c);
+        }
 
         /// <summary>
         /// Envía el recibo UNA sola vez por orden: claim atómico en DB (ReceiptEmailSentAt) → enviar →
@@ -95,6 +100,7 @@ namespace GolaStripe.Helpers
             var bcc = Setting("ReceiptBcc", null);
 
             baseUrl = NormalizeBaseUrl(baseUrl);
+            var c = Lang.CultureFor(r.Language);
 
             var msg = new MailMessage();
             msg.From = new MailAddress(from, fromName, Encoding.UTF8);
@@ -104,17 +110,18 @@ namespace GolaStripe.Helpers
             if (!string.IsNullOrEmpty(bcc))
                 msg.Bcc.Add(new MailAddress(bcc));
 
-            msg.Subject = "Recibo de pago - " + fromName + " - Orden #" + r.OrderId;
+            msg.Subject = string.Format(c, T("Email_Subject", c), fromName,
+                r.OrderId.ToString(CultureInfo.InvariantCulture));
             msg.SubjectEncoding = Encoding.UTF8;
             msg.HeadersEncoding = Encoding.UTF8;
             msg.BodyEncoding = Encoding.UTF8;
 
             var text = AlternateView.CreateAlternateViewFromString(
-                BuildText(r, baseUrl), Encoding.UTF8, MediaTypeNames.Text.Plain);
+                BuildText(r, baseUrl, c), Encoding.UTF8, MediaTypeNames.Text.Plain);
             text.TransferEncoding = TransferEncoding.QuotedPrintable;
 
             var html = AlternateView.CreateAlternateViewFromString(
-                BuildHtml(r, baseUrl), Encoding.UTF8, MediaTypeNames.Text.Html);
+                BuildHtml(r, baseUrl, c), Encoding.UTF8, MediaTypeNames.Text.Html);
             html.TransferEncoding = TransferEncoding.QuotedPrintable;
 
             msg.AlternateViews.Add(text);
@@ -141,46 +148,47 @@ namespace GolaStripe.Helpers
 
         public static string ReceiptUrl(ReceiptVm r, string baseUrl)
         {
-            return NormalizeBaseUrl(baseUrl) + "/Payments/Receipt?id=" + r.PublicOrderId.ToString();
+            return NormalizeBaseUrl(baseUrl) + "/Payments/Receipt?id=" + r.PublicOrderId.ToString()
+                + "&lang=" + Lang.NormalizeOrDefault(r.Language);
         }
 
-        private static string BuildText(ReceiptVm r, string baseUrl)
+        private static string BuildText(ReceiptVm r, string baseUrl, CultureInfo c)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("Gola LLC - Recibo de pago");
-            sb.AppendLine("Orden #" + r.OrderId);
-            var paid = PaidAtAst(r);
-            if (paid != null) sb.AppendLine("Fecha: " + paid);
-            if (!string.IsNullOrEmpty(r.CustomerName)) sb.AppendLine("Cliente: " + r.CustomerName);
+            sb.AppendLine("Gola LLC - " + T("Receipt_Title", c));
+            sb.AppendLine(string.Format(c, T("Receipt_OrderNumber", c), r.OrderId.ToString(CultureInfo.InvariantCulture)));
+            var paid = PaidAtAst(r, c);
+            if (paid != null) sb.AppendLine(T("Label_Date", c) + ": " + paid);
+            if (!string.IsNullOrEmpty(r.CustomerName)) sb.AppendLine(T("Label_Customer", c) + ": " + r.CustomerName);
             sb.AppendLine();
             foreach (var l in r.Lines)
             {
-                sb.AppendLine(l.Name + "  x" + l.Quantity + "  " + l.UnitAmount.ToString("C", Money)
-                    + "  = " + l.LineTotal.ToString("C", Money));
+                sb.AppendLine(l.Name + "  x" + l.Quantity.ToString(CultureInfo.InvariantCulture) + "  " + Money.Format(l.UnitAmount)
+                    + "  = " + Money.Format(l.LineTotal));
             }
             sb.AppendLine();
-            sb.AppendLine("Total (" + r.CurrencyUpper + "): " + r.AmountTotal.ToString("C", Money));
+            sb.AppendLine(T("Label_Total", c) + " (" + r.CurrencyUpper + "): " + Money.Format(r.AmountTotal));
             if (!string.IsNullOrEmpty(r.CardLast4))
-                sb.AppendLine("Tarjeta: " + CardBrandLabel(r.CardBrand) + " ****" + r.CardLast4);
+                sb.AppendLine(T("Label_Card", c) + ": " + CardBrandLabel(r.CardBrand, c) + " ****" + r.CardLast4);
             sb.AppendLine();
-            sb.AppendLine("Ver / descargar recibo: " + ReceiptUrl(r, baseUrl));
+            sb.AppendLine(T("Email_ViewReceipt", c) + ": " + ReceiptUrl(r, baseUrl));
             sb.AppendLine();
-            sb.AppendLine("Gracias por su pago.");
+            sb.AppendLine(T("Email_ThankYou", c));
             sb.AppendLine("Gola LLC · golapr.com");
             return sb.ToString();
         }
 
-        private static string BuildHtml(ReceiptVm r, string baseUrl)
+        private static string BuildHtml(ReceiptVm r, string baseUrl, CultureInfo c)
         {
             Func<string, string> H = HttpUtility.HtmlEncode;
             var logoUrl = baseUrl + "/Content/images/gola-logo.png";
             var receiptUrl = ReceiptUrl(r, baseUrl);
-            var paid = PaidAtAst(r);
+            var paid = PaidAtAst(r, c);
 
             var sb = new StringBuilder();
-            sb.Append("<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"utf-8\" />");
+            sb.Append("<!DOCTYPE html><html lang=\"" + Lang.NormalizeOrDefault(r.Language) + "\"><head><meta charset=\"utf-8\" />");
             sb.Append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />");
-            sb.Append("<title>Recibo de pago</title></head>");
+            sb.Append("<title>" + H(T("Receipt_Title", c)) + "</title></head>");
             sb.Append("<body style=\"margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;\">");
             sb.Append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"background:#f1f5f9;\"><tr><td align=\"center\" style=\"padding:24px 12px;\">");
             sb.Append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"max-width:600px;background:#ffffff;border-radius:8px;\">");
@@ -189,31 +197,34 @@ namespace GolaStripe.Helpers
             sb.Append("<tr><td align=\"center\" style=\"padding:28px 24px 8px;\">");
             sb.Append("<img src=\"" + H(logoUrl) + "\" alt=\"Gola\" height=\"56\" style=\"display:block;height:56px;width:auto;border:0;\" />");
             sb.Append("</td></tr>");
-            sb.Append("<tr><td align=\"center\" style=\"padding:8px 24px 0;font-size:22px;font-weight:bold;color:#0f172a;\">Recibo de pago</td></tr>");
+            sb.Append("<tr><td align=\"center\" style=\"padding:8px 24px 0;font-size:22px;font-weight:bold;color:#0f172a;\">" + H(T("Receipt_Title", c)) + "</td></tr>");
             sb.Append("<tr><td align=\"center\" style=\"padding:4px 24px 20px;font-size:14px;color:#64748b;\">");
-            sb.Append("<span style=\"display:inline-block;padding:2px 10px;border-radius:999px;background:#dcfce7;color:#166534;font-weight:bold;font-size:12px;\">Pagado</span>");
-            sb.Append(" &middot; Orden #" + H(r.OrderId.ToString(CultureInfo.InvariantCulture)));
+            sb.Append("<span style=\"display:inline-block;padding:2px 10px;border-radius:999px;background:#dcfce7;color:#166534;font-weight:bold;font-size:12px;\">" + H(T("Status_Paid", c)) + "</span>");
+            sb.Append(" &middot; " + H(string.Format(c, T("Receipt_OrderNumber", c), r.OrderId.ToString(CultureInfo.InvariantCulture))));
             sb.Append("</td></tr>");
 
             // Datos
             sb.Append("<tr><td style=\"padding:0 24px 16px;font-size:14px;color:#334155;line-height:22px;\">");
-            sb.Append("<p style=\"margin:0 0 12px;\">Hola" + (string.IsNullOrEmpty(r.CustomerName) ? "" : " " + H(r.CustomerName)) + ", gracias por su pago. Este es su recibo.</p>");
+            var greeting = string.IsNullOrEmpty(r.CustomerName)
+                ? T("Email_Greeting", c)
+                : string.Format(c, T("Email_GreetingName", c), r.CustomerName);
+            sb.Append("<p style=\"margin:0 0 12px;\">" + H(greeting) + "</p>");
             if (!string.IsNullOrEmpty(r.CustomerName))
-                sb.Append("<strong style=\"color:#0f172a;\">Cliente:</strong> " + H(r.CustomerName) + "<br />");
+                sb.Append("<strong style=\"color:#0f172a;\">" + H(T("Label_Customer", c)) + ":</strong> " + H(r.CustomerName) + "<br />");
             if (paid != null)
-                sb.Append("<strong style=\"color:#0f172a;\">Fecha:</strong> " + H(paid) + "<br />");
+                sb.Append("<strong style=\"color:#0f172a;\">" + H(T("Label_Date", c)) + ":</strong> " + H(paid) + "<br />");
             if (!string.IsNullOrEmpty(r.CardLast4))
-                sb.Append("<strong style=\"color:#0f172a;\">Tarjeta:</strong> " + H(CardBrandLabel(r.CardBrand)) + " ****" + H(r.CardLast4) + "<br />");
+                sb.Append("<strong style=\"color:#0f172a;\">" + H(T("Label_Card", c)) + ":</strong> " + H(CardBrandLabel(r.CardBrand, c)) + " ****" + H(r.CardLast4) + "<br />");
             sb.Append("</td></tr>");
 
             // Líneas
             sb.Append("<tr><td style=\"padding:0 24px;\">");
             sb.Append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-size:14px;border-collapse:collapse;\">");
             sb.Append("<tr>");
-            sb.Append(Th("Descripción", "left"));
-            sb.Append(Th("Cant.", "right"));
-            sb.Append(Th("Precio", "right"));
-            sb.Append(Th("Importe", "right"));
+            sb.Append(Th(H(T("Col_Description", c)), "left"));
+            sb.Append(Th(H(T("Col_Qty", c)), "right"));
+            sb.Append(Th(H(T("Col_Price", c)), "right"));
+            sb.Append(Th(H(T("Col_Amount", c)), "right"));
             sb.Append("</tr>");
             if (r.Lines != null && r.Lines.Count > 0)
             {
@@ -222,18 +233,18 @@ namespace GolaStripe.Helpers
                     sb.Append("<tr>");
                     sb.Append(Td(H(l.Name), "left"));
                     sb.Append(Td(H(l.Quantity.ToString(CultureInfo.InvariantCulture)), "right"));
-                    sb.Append(Td(H(l.UnitAmount.ToString("C", Money)), "right"));
-                    sb.Append(Td(H(l.LineTotal.ToString("C", Money)), "right"));
+                    sb.Append(Td(H(Money.Format(l.UnitAmount)), "right"));
+                    sb.Append(Td(H(Money.Format(l.LineTotal)), "right"));
                     sb.Append("</tr>");
                 }
             }
             else
             {
-                sb.Append("<tr><td colspan=\"4\" style=\"padding:10px 0;border-bottom:1px solid #f1f5f9;\">Sin ítems</td></tr>");
+                sb.Append("<tr><td colspan=\"4\" style=\"padding:10px 0;border-bottom:1px solid #f1f5f9;\">" + H(T("Receipt_NoItems", c)) + "</td></tr>");
             }
             sb.Append("<tr>");
-            sb.Append("<td colspan=\"3\" style=\"padding:12px 0 0;border-top:2px solid #0f172a;font-size:16px;font-weight:bold;\">Total (" + H(r.CurrencyUpper) + ")</td>");
-            sb.Append("<td align=\"right\" style=\"padding:12px 0 0;border-top:2px solid #0f172a;font-size:16px;font-weight:bold;\">" + H(r.AmountTotal.ToString("C", Money)) + "</td>");
+            sb.Append("<td colspan=\"3\" style=\"padding:12px 0 0;border-top:2px solid #0f172a;font-size:16px;font-weight:bold;\">" + H(T("Label_Total", c)) + " (" + H(r.CurrencyUpper) + ")</td>");
+            sb.Append("<td align=\"right\" style=\"padding:12px 0 0;border-top:2px solid #0f172a;font-size:16px;font-weight:bold;\">" + H(Money.Format(r.AmountTotal)) + "</td>");
             sb.Append("</tr>");
             sb.Append("</table>");
             sb.Append("</td></tr>");
@@ -242,10 +253,10 @@ namespace GolaStripe.Helpers
             sb.Append("<tr><td align=\"center\" style=\"padding:28px 24px 8px;\">");
             sb.Append("<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>");
             sb.Append("<td align=\"center\" bgcolor=\"#16a34a\" style=\"border-radius:6px;\">");
-            sb.Append("<a href=\"" + H(receiptUrl) + "\" target=\"_blank\" style=\"display:inline-block;padding:12px 24px;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:6px;background:#16a34a;\">Ver / descargar recibo</a>");
+            sb.Append("<a href=\"" + H(receiptUrl) + "\" target=\"_blank\" style=\"display:inline-block;padding:12px 24px;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:6px;background:#16a34a;\">" + H(T("Email_ViewReceipt", c)) + "</a>");
             sb.Append("</td></tr></table>");
             sb.Append("</td></tr>");
-            sb.Append("<tr><td align=\"center\" style=\"padding:4px 24px 24px;font-size:12px;color:#94a3b8;\">Ref: " + H(r.PublicOrderId.ToString()) + "</td></tr>");
+            sb.Append("<tr><td align=\"center\" style=\"padding:4px 24px 24px;font-size:12px;color:#94a3b8;\">" + H(T("Label_Ref", c)) + ": " + H(r.PublicOrderId.ToString()) + "</td></tr>");
 
             // Footer
             sb.Append("<tr><td align=\"center\" style=\"padding:16px 24px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;\">");
@@ -268,29 +279,17 @@ namespace GolaStripe.Helpers
             return "<td align=\"" + align + "\" style=\"padding:10px 0;border-bottom:1px solid #f1f5f9;vertical-align:top;\">" + encodedHtml + "</td>";
         }
 
-        /// <summary>Fecha de pago en AST (UTC-4, Puerto Rico / La Paz, sin horario de verano).</summary>
-        private static string PaidAtAst(ReceiptVm r)
+        /// <summary>Fecha de pago en AST (UTC-4, Puerto Rico / La Paz, sin horario de verano), formato del idioma de la orden.</summary>
+        private static string PaidAtAst(ReceiptVm r, CultureInfo c)
         {
             if (!r.PaidAtUtc.HasValue)
                 return null;
-
-            var utc = DateTime.SpecifyKind(r.PaidAtUtc.Value, DateTimeKind.Utc);
-            DateTime local;
-            try
-            {
-                var tz = TimeZoneInfo.FindSystemTimeZoneById("SA Western Standard Time");
-                local = TimeZoneInfo.ConvertTimeFromUtc(utc, tz);
-            }
-            catch (Exception)
-            {
-                local = utc.AddHours(-4);
-            }
-            return local.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) + " AST";
+            return Lang.FormatAst(r.PaidAtUtc.Value, c);
         }
 
-        private static string CardBrandLabel(string brand)
+        private static string CardBrandLabel(string brand, CultureInfo c)
         {
-            if (string.IsNullOrEmpty(brand)) return "Tarjeta";
+            if (string.IsNullOrEmpty(brand)) return T("Label_Card", c);
             switch (brand.ToLowerInvariant())
             {
                 case "visa": return "Visa";

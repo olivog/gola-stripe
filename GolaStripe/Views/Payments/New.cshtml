@@ -1,11 +1,12 @@
-@{
-    ViewBag.Title = "Nuevo cobro";
+﻿@{
+    ViewBag.Title = Strings.New_Title;
+    var customerLang = Lang.NormalizeOrDefault(ViewBag.CustomerLang as string);
 }
 
 <style>
     .box { max-width: 28rem; }
     label { font-size: .9rem; color: #94a3b8; }
-    input {
+    input, select {
         width: 100%;
         padding: .5rem;
         border-radius: .35rem;
@@ -28,8 +29,8 @@
 </style>
 
 <div class="box">
-    <h1>Nuevo cobro</h1>
-    <p class="muted">Crea un link de Stripe Checkout para enviárselo al cliente. No te redirige a pagar.</p>
+    <h1>@Strings.New_Title</h1>
+    <p class="muted">@Strings.New_Intro</p>
 
     @if (!string.IsNullOrEmpty(ViewBag.Error as string))
     {
@@ -41,19 +42,30 @@
         @Html.AntiForgeryToken()
 
         <p>
-            <label for="productName">Nombre del producto</label><br />
+            <label for="productName">@Strings.New_ProductName</label><br />
             <input id="productName" name="productName" type="text" maxlength="200" required
                    value="@(ViewBag.ProductName ?? "")" />
         </p>
 
         <p>
-            <label for="amountDollars">Precio (USD)</label><br />
+            <label for="amountDollars">@Strings.New_Price</label><br />
             <input id="amountDollars" name="amountDollars" type="number" min="0.50" max="99999.99" step="0.01" required
                    value="@(ViewBag.AmountDollars ?? "10.00")" />
         </p>
 
         <p>
-            <button type="submit">Crear link de pago</button>
+            <label for="customerLang">@Strings.New_CustomerLanguage</label><br />
+            <select id="customerLang" name="customerLang">
+                @foreach (var code in Lang.Supported)
+                {
+                    <option value="@code" lang="@code" selected="@(code == customerLang)">@Lang.DisplayName(code)</option>
+                }
+            </select><br />
+            <span class="muted">@Strings.New_CustomerLanguageHint</span>
+        </p>
+
+        <p>
+            <button type="submit">@Strings.New_Submit</button>
         </p>
     }
 </div>

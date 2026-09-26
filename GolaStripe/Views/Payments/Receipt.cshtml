@@ -1,6 +1,6 @@
 @model GolaStripe.Models.ReceiptVm
 @{
-    ViewBag.Title = "Recibo de pago";
+    ViewBag.Title = Strings.Receipt_Title;
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
@@ -15,9 +15,9 @@
     }
     else
     {
-        <h1>Recibo no encontrado</h1>
-        <p>No encontramos un recibo pagado para este enlace. Verifique que copió el enlace completo del email.</p>
-        <p class="hint">Si necesita ayuda, responda al email del recibo o escríbanos a través de golapr.com.</p>
+        <h1>@Strings.Receipt_NotFoundTitle</h1>
+        <p>@Strings.Receipt_NotFoundBody</p>
+        <p class="hint">@Strings.Receipt_HelpHint</p>
     }
 }
 else
@@ -25,8 +25,8 @@ else
     @Html.Partial("_Receipt", Model)
 
     <div class="actions no-print">
-        <button type="button" class="btn" onclick="window.print()">Guardar como PDF</button>
-        <p class="hint">En el diálogo de impresión elige “Guardar como PDF” / “Save as PDF”.</p>
+        <button type="button" class="btn" onclick="window.print()">@Strings.Receipt_SavePdf</button>
+        <p class="hint">@Strings.Receipt_PrintHint</p>
     </div>
 }
 </div>

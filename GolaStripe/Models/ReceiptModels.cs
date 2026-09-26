@@ -31,12 +31,15 @@ namespace GolaStripe.Models
         public DateTime? PaidAtUtc { get; set; }
         public string StripeSessionId { get; set; }
         public DateTime? ReceiptEmailSentAtUtc { get; set; }
+        /// <summary>Idioma del cliente para esta orden (Orders.Language): "en" / "es".</summary>
+        public string Language { get; set; }
         public List<ReceiptLine> Lines { get; set; }
 
         public ReceiptVm()
         {
             Lines = new List<ReceiptLine>();
             Currency = "usd";
+            Language = "en";
         }
 
         public string CurrencyUpper

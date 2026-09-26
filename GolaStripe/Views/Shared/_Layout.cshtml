@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="@Lang.Current">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -24,11 +24,50 @@
             color: #4ade80;
             font-weight: 600;
         }
+
+        .lang-switch {
+            max-width: 40rem;
+            text-align: right;
+            font-size: .85rem;
+            margin: -1rem 0 1rem;
+            color: #64748b;
+        }
+
+        .lang-switch a {
+            color: #94a3b8;
+            text-decoration: none;
+            padding: 0 .2rem;
+        }
+
+        .lang-switch a:hover { color: #e2e8f0; }
+
+        .lang-switch a.active {
+            color: #38bdf8;
+            font-weight: 700;
+        }
+
+        @@media print {
+            .lang-switch { display: none !important; }
+        }
     </style>
     <link rel="icon" href="~/favicon.ico" type="image/x-icon" />
     <link rel="shortcut icon" href="~/favicon.ico" type="image/x-icon" />
 </head>
 <body>
+    @* Selector EN | ES: misma URL con lang= reemplazado (conserva session_id, id, etc.). Solo en GET. *@
+    @if (Request.HttpMethod == "GET" && !(ViewBag.HideLangSwitch is bool && (bool)ViewBag.HideLangSwitch))
+    {
+        var cur = Lang.Current;
+        <nav class="lang-switch no-print" aria-label="@Strings.LangSwitch_Label">
+            @for (var i = 0; i < Lang.Supported.Length; i++)
+            {
+                var code = Lang.Supported[i];
+                if (i > 0) { <text>|</text> }
+                <a href="@Lang.SwitchUrl(Request, code)" hreflang="@code" lang="@code" title="@Lang.DisplayName(code)"
+                   class="@(code == cur ? "active" : "")">@code.ToUpperInvariant()</a>
+            }
+        </nav>
+    }
     <main>
         @RenderBody()
     </main> 

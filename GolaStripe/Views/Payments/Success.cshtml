@@ -1,6 +1,6 @@
 @model GolaStripe.Models.ReceiptVm
 @{
-    ViewBag.Title = "Recibo de pago";
+    ViewBag.Title = Strings.Receipt_Title;
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
@@ -9,22 +9,26 @@
 <div class="receipt-wrap">
 @if (!string.IsNullOrEmpty(ViewBag.Error as string))
 {
-    <p class="err">No se pudo cargar el recibo: @ViewBag.Error</p>
-    <p class="no-print"><a class="btn secondary" href="@Url.Action("Index", "Home")">Volver</a></p>
+    <p class="err">@ViewBag.Error</p>
+    if (!string.IsNullOrEmpty(ViewBag.ErrorDetail as string))
+    {
+        <p class="hint">@ViewBag.ErrorDetail</p>
+    }
+    <p class="no-print"><a class="btn secondary" href="@Url.Action("Index", "Home")">@Strings.Nav_Back</a></p>
 }
 else if (Model == null)
 {
-    <p class="err">Falta <code>session_id</code> en la URL.</p>
-    <p class="no-print"><a class="btn secondary" href="@Url.Action("Index", "Home")">Volver</a></p>
+    <p class="err">@Strings.Success_MissingSession</p>
+    <p class="no-print"><a class="btn secondary" href="@Url.Action("Index", "Home")">@Strings.Nav_Back</a></p>
 }
 else
 {
     @Html.Partial("_Receipt", Model)
 
     <div class="actions no-print">
-        <button type="button" class="btn" onclick="window.print()">Guardar como PDF</button>
-        <a class="btn secondary" href="@Url.Action("Index", "Home")">Volver al inicio</a>
-        <p class="hint">En el diálogo de impresión elige “Guardar como PDF” / “Save as PDF”.</p>
+        <button type="button" class="btn" onclick="window.print()">@Strings.Receipt_SavePdf</button>
+        <a class="btn secondary" href="@Url.Action("Index", "Home")">@Strings.Nav_BackHome</a>
+        <p class="hint">@Strings.Receipt_PrintHint</p>
     </div>
 }
 </div>

@@ -5,6 +5,7 @@ using System.Web.Mvc;
 using Stripe;
 using Stripe.Checkout;
 using GolaStripe.Helpers;
+using GolaStripe.Resources;
 using System.IO;
 using System.Diagnostics;
 
@@ -54,12 +55,26 @@ namespace GolaStripe.Controllers
             }
         }
 
+        /// <summary>
+        /// Success/Receipt: el idioma de la orden manda, salvo que el usuario haya pedido otro con ?lang=
+        /// (prioridad: ?lang → Orders.Language → cookie/navegador, que ya aplicó LangFilter).
+        /// </summary>
+        private void ApplyOrderLanguage(GolaStripe.Models.ReceiptVm receipt)
+        {
+            if (receipt == null || Lang.FromQuery(Request) != null)
+                return;
+            var orderLang = Lang.Normalize(receipt.Language);
+            if (orderLang != null)
+                Lang.Apply(orderLang);
+        }
+
         // GET /Payments/New
         [HttpGet]
         public ActionResult New()
         {
             ViewBag.ProductName = "";
             ViewBag.AmountDollars = "10.00";
+            ViewBag.CustomerLang = Lang.Default; // idioma del cliente: inglés por defecto
             return View();
         }
 
@@ -73,12 +88,14 @@ namespace GolaStripe.Controllers
         // POST /Payments/CreateCheckout
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult CreateCheckout(string productName, string amountDollars)
+        public ActionResult CreateCheckout(string productName, string amountDollars, string customerLang)
         {
             productName = (productName ?? "").Trim();
+            customerLang = Lang.NormalizeOrDefault(customerLang); // "en" / "es", nunca null
+            ViewBag.CustomerLang = customerLang;
             if (string.IsNullOrWhiteSpace(productName) || productName.Length > 200)
             {
-                ViewBag.Error = "Escribe un nombre de producto (máx. 200).";
+                ViewBag.Error = Strings.Err_ProductName;
                 ViewBag.ProductName = productName;
                 ViewBag.AmountDollars = amountDollars;
                 return View("New");
@@ -93,7 +110,7 @@ namespace GolaStripe.Controllers
                 || amount < 0.50m
                 || amount > 99999.99m)
             {
-                ViewBag.Error = "Precio inválido. Usa entre 0.50 y 99999.99 USD.";
+                ViewBag.Error = Strings.Err_Price;
                 ViewBag.ProductName = productName;
                 ViewBag.AmountDollars = amountDollars;
                 return View("New");
@@ -106,48 +123,64 @@ namespace GolaStripe.Controllers
 
             const string currency = "usd";
             const int qty = 1;
-            var sourceAppId = GolaPayDb.GetSourceAppId("stripe");
             long orderId;
             Guid publicOrderId;
-            GolaPayDb.CreatePendingOrder(
-                sourceAppId, amount, currency, productName, qty,
-                out orderId, out publicOrderId);
-            int amountCents = Money.ToCents(amount);
-
-            var domain = Request.Url.GetLeftPart(UriPartial.Authority);
-
-            var options = new SessionCreateOptions
+            Stripe.Checkout.Session session;
+            try
             {
-                Mode = "payment",
-                SuccessUrl = domain + "/Payments/Success?session_id={CHECKOUT_SESSION_ID}",
-                CancelUrl = domain + "/Payments/Cancel?session_id={CHECKOUT_SESSION_ID}",
-                ClientReferenceId = publicOrderId.ToString(),
-                Metadata = new Dictionary<string, string>
-        {
-            { "order_id", orderId.ToString() },
-            { "public_order_id", publicOrderId.ToString() },
-            { "source_app", "stripe" }
-        },
-                LineItems = new List<SessionLineItemOptions>
-        {
-            new SessionLineItemOptions
-            {
-                Quantity = qty,
-                PriceData = new SessionLineItemPriceDataOptions
+                var sourceAppId = GolaPayDb.GetSourceAppId("stripe");
+                GolaPayDb.CreatePendingOrder(
+                    sourceAppId, amount, currency, productName, qty, customerLang,
+                    out orderId, out publicOrderId);
+                int amountCents = Money.ToCents(amount);
+
+                var domain = Request.Url.GetLeftPart(UriPartial.Authority);
+
+                var options = new SessionCreateOptions
                 {
-                    Currency = currency,
-                    UnitAmount = amountCents,
-                    ProductData = new SessionLineItemPriceDataProductDataOptions
+                    Mode = "payment",
+                    // Idioma del Checkout de Stripe (queda fijo para esta sesión)
+                    Locale = customerLang,
+                    // lang= lleva el idioma de la orden a Success/Cancel
+                    SuccessUrl = domain + "/Payments/Success?lang=" + customerLang + "&session_id={CHECKOUT_SESSION_ID}",
+                    CancelUrl = domain + "/Payments/Cancel?lang=" + customerLang + "&session_id={CHECKOUT_SESSION_ID}",
+                    ClientReferenceId = publicOrderId.ToString(),
+                    Metadata = new Dictionary<string, string>
+            {
+                { "order_id", orderId.ToString() },
+                { "public_order_id", publicOrderId.ToString() },
+                { "source_app", "stripe" },
+                { "lang", customerLang }
+            },
+                    LineItems = new List<SessionLineItemOptions>
+            {
+                new SessionLineItemOptions
+                {
+                    Quantity = qty,
+                    PriceData = new SessionLineItemPriceDataOptions
                     {
-                        Name = productName
+                        Currency = currency,
+                        UnitAmount = amountCents,
+                        ProductData = new SessionLineItemPriceDataProductDataOptions
+                        {
+                            Name = productName
+                        }
                     }
                 }
             }
-        }
-            };
+                };
 
-                        var session = new SessionService().Create(options);
-            GolaPayDb.SetStripeSessionId(orderId, session.Id);
+                session = new SessionService().Create(options);
+                GolaPayDb.SetStripeSessionId(orderId, session.Id);
+            }
+            catch (Exception ex)
+            {
+                Trace.TraceError("CreateCheckout: " + ex);
+                ViewBag.Error = Strings.Err_CreateCheckout + (Request.IsLocal ? " (" + ex.Message + ")" : "");
+                ViewBag.ProductName = productName;
+                ViewBag.AmountDollars = amountDollars;
+                return View("New");
+            }
 
             // No redirigir al admin: mostrar link compartible para el cliente
             ViewBag.CheckoutUrl = session.Url;
@@ -157,6 +190,7 @@ namespace GolaStripe.Controllers
             ViewBag.ProductName = productName;
             ViewBag.AmountDollars = amount;
             ViewBag.Currency = currency.ToUpperInvariant();
+            ViewBag.CustomerLang = customerLang;
             return View("Link");
         }
 
@@ -174,6 +208,8 @@ namespace GolaStripe.Controllers
                 {
                     if (GolaPayDb.TryGetReceiptBySessionId(session_id, out receipt))
                     {
+                        ApplyOrderLanguage(receipt);
+
                         // Respaldo del webhook: si ya está Paid y no se ha enviado el recibo, enviarlo.
                         // El claim en DB (ReceiptEmailSentAt) evita duplicados con el webhook.
                         if (receipt.IsPaid && !receipt.ReceiptEmailSentAtUtc.HasValue
@@ -220,7 +256,7 @@ namespace GolaStripe.Controllers
 
                                 receipt.Lines.Add(new GolaStripe.Models.ReceiptLine
                                 {
-                                    Name = name ?? "Ítem",
+                                    Name = name ?? Strings.Item_Default,
                                     Quantity = (int)(li.Quantity ?? 1),
                                     UnitAmount = (li.Price != null && li.Price.UnitAmount != null
                                         ? li.Price.UnitAmount.Value
@@ -234,7 +270,7 @@ namespace GolaStripe.Controllers
                         {
                             receipt.Lines.Add(new GolaStripe.Models.ReceiptLine
                             {
-                                Name = "Pago",
+                                Name = Strings.Item_Payment,
                                 Quantity = 1,
                                 UnitAmount = receipt.AmountTotal,
                                 Currency = receipt.Currency
@@ -244,7 +280,9 @@ namespace GolaStripe.Controllers
                 }
                 catch (Exception ex)
                 {
-                    ViewBag.Error = ex.Message;
+                    Trace.TraceError("Success " + session_id + ": " + ex);
+                    ViewBag.Error = Strings.Receipt_LoadError;
+                    ViewBag.ErrorDetail = Request.IsLocal ? ex.Message : null;
                 }
             }
 
@@ -264,11 +302,13 @@ namespace GolaStripe.Controllers
                 {
                     if (!GolaPayDb.TryGetReceiptByPublicId(publicId, out receipt) || !receipt.IsPaid)
                         receipt = null;
+                    else
+                        ApplyOrderLanguage(receipt);
                 }
                 catch (Exception ex)
                 {
                     Trace.TraceError("Receipt " + id + ": " + ex);
-                    ViewBag.Error = "No se pudo cargar el recibo. Intente más tarde.";
+                    ViewBag.Error = Strings.Receipt_LoadErrorTryLater;
                     receipt = null;
                 }
             }
@@ -300,7 +340,9 @@ namespace GolaStripe.Controllers
                 }
                 catch (Exception ex)
                 {
-                    ViewBag.Error = ex.Message;
+                    Trace.TraceError("Cancel " + session_id + ": " + ex);
+                    ViewBag.Error = Strings.Cancel_Error;
+                    ViewBag.ErrorDetail = Request.IsLocal ? ex.Message : null;
                 }
             }
 

@@ -1,0 +1,289 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    GolaStripe: textos de la UI. Strings.resx = inglés (neutral/por defecto), Strings.es.resx = español.
+    Si agregas una clave aquí, agrégala también en Strings.es.resx y en Strings.Designer.cs
+    (o en VS2019: clic derecho en Strings.resx > Run Custom Tool).
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Nav_Home" xml:space="preserve">
+    <value>Inicio</value>
+  </data>
+  <data name="Nav_Back" xml:space="preserve">
+    <value>Volver</value>
+  </data>
+  <data name="Nav_BackHome" xml:space="preserve">
+    <value>Volver al inicio</value>
+  </data>
+  <data name="LangSwitch_Label" xml:space="preserve">
+    <value>Idioma</value>
+  </data>
+  <data name="Home_Running" xml:space="preserve">
+    <value>El esqueleto MVC5 está corriendo en VS2019.</value>
+  </data>
+  <data name="Label_Order" xml:space="preserve">
+    <value>Orden</value>
+  </data>
+  <data name="Label_Product" xml:space="preserve">
+    <value>Producto</value>
+  </data>
+  <data name="Label_Amount" xml:space="preserve">
+    <value>Monto</value>
+  </data>
+  <data name="Label_Status" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="Label_Customer" xml:space="preserve">
+    <value>Cliente</value>
+  </data>
+  <data name="Label_Email" xml:space="preserve">
+    <value>Email</value>
+  </data>
+  <data name="Label_Country" xml:space="preserve">
+    <value>País</value>
+  </data>
+  <data name="Label_PaidOn" xml:space="preserve">
+    <value>Pagado el</value>
+  </data>
+  <data name="Label_Date" xml:space="preserve">
+    <value>Fecha</value>
+  </data>
+  <data name="Label_Card" xml:space="preserve">
+    <value>Tarjeta</value>
+  </data>
+  <data name="Label_Ref" xml:space="preserve">
+    <value>Ref.</value>
+  </data>
+  <data name="Label_Total" xml:space="preserve">
+    <value>Total</value>
+  </data>
+  <data name="Col_Description" xml:space="preserve">
+    <value>Descripción</value>
+  </data>
+  <data name="Col_Qty" xml:space="preserve">
+    <value>Cant.</value>
+  </data>
+  <data name="Col_Price" xml:space="preserve">
+    <value>Precio</value>
+  </data>
+  <data name="Col_Amount" xml:space="preserve">
+    <value>Importe</value>
+  </data>
+  <data name="Status_Paid" xml:space="preserve">
+    <value>Pagado</value>
+  </data>
+  <data name="Status_Pending" xml:space="preserve">
+    <value>Pendiente</value>
+  </data>
+  <data name="Status_Cancelled" xml:space="preserve">
+    <value>Cancelado</value>
+  </data>
+  <data name="Status_Expired" xml:space="preserve">
+    <value>Expirado</value>
+  </data>
+  <data name="Status_Unpaid" xml:space="preserve">
+    <value>No pagado</value>
+  </data>
+  <data name="New_Title" xml:space="preserve">
+    <value>Nuevo cobro</value>
+  </data>
+  <data name="New_Intro" xml:space="preserve">
+    <value>Crea un link de Stripe Checkout para enviárselo al cliente. No te redirige a pagar.</value>
+  </data>
+  <data name="New_ProductName" xml:space="preserve">
+    <value>Nombre del producto</value>
+  </data>
+  <data name="New_Price" xml:space="preserve">
+    <value>Precio (USD)</value>
+  </data>
+  <data name="New_CustomerLanguage" xml:space="preserve">
+    <value>Idioma del cliente</value>
+  </data>
+  <data name="New_CustomerLanguageHint" xml:space="preserve">
+    <value>Idioma que verá el cliente en el Checkout, el recibo y el email.</value>
+  </data>
+  <data name="New_Submit" xml:space="preserve">
+    <value>Crear link de pago</value>
+  </data>
+  <data name="Err_ProductName" xml:space="preserve">
+    <value>Escribe un nombre de producto (máx. 200 caracteres).</value>
+  </data>
+  <data name="Err_Price" xml:space="preserve">
+    <value>Precio inválido. Usa un monto entre 0.50 y 99,999.99 USD.</value>
+  </data>
+  <data name="Err_CreateCheckout" xml:space="preserve">
+    <value>No se pudo crear el link de pago. Inténtalo de nuevo.</value>
+  </data>
+  <data name="Link_Title" xml:space="preserve">
+    <value>Link de pago</value>
+  </data>
+  <data name="Link_Heading" xml:space="preserve">
+    <value>Link de pago listo</value>
+  </data>
+  <data name="Link_Created" xml:space="preserve">
+    <value>Orden pendiente creada. Copia el link y envíaselo al cliente.</value>
+  </data>
+  <data name="Link_Copy" xml:space="preserve">
+    <value>Copiar link</value>
+  </data>
+  <data name="Link_Copied" xml:space="preserve">
+    <value>Copiado.</value>
+  </data>
+  <data name="Link_CopyFallback" xml:space="preserve">
+    <value>Selecciona el link y cópialo con Ctrl+C.</value>
+  </data>
+  <data name="Link_OpenCheckout" xml:space="preserve">
+    <value>Abrir Checkout</value>
+  </data>
+  <data name="Link_CreateAnother" xml:space="preserve">
+    <value>Crear otro</value>
+  </data>
+  <data name="Link_Hint" xml:space="preserve">
+    <value>El link es de Stripe Checkout (Test). Si el cliente cancela, la orden pasa a Cancelada; si la sesión expira, pasa a Expirada.</value>
+  </data>
+  <data name="Link_LangHint" xml:space="preserve">
+    <value>El idioma del Checkout queda fijo al crear el link. Para usar otro idioma, crea un link nuevo.</value>
+  </data>
+  <data name="Receipt_Title" xml:space="preserve">
+    <value>Recibo de pago</value>
+  </data>
+  <data name="Receipt_OrderNumber" xml:space="preserve">
+    <value>Orden #{0}</value>
+  </data>
+  <data name="Receipt_NoItems" xml:space="preserve">
+    <value>Sin artículos</value>
+  </data>
+  <data name="Receipt_SavePdf" xml:space="preserve">
+    <value>Guardar como PDF</value>
+  </data>
+  <data name="Receipt_PrintHint" xml:space="preserve">
+    <value>En el diálogo de impresión, elija "Guardar como PDF".</value>
+  </data>
+  <data name="Receipt_LoadError" xml:space="preserve">
+    <value>No se pudo cargar el recibo.</value>
+  </data>
+  <data name="Receipt_LoadErrorTryLater" xml:space="preserve">
+    <value>No se pudo cargar el recibo. Intente más tarde.</value>
+  </data>
+  <data name="Receipt_NotFoundTitle" xml:space="preserve">
+    <value>Recibo no encontrado</value>
+  </data>
+  <data name="Receipt_NotFoundBody" xml:space="preserve">
+    <value>No encontramos un recibo pagado para este enlace. Verifique que copió el enlace completo del email.</value>
+  </data>
+  <data name="Receipt_HelpHint" xml:space="preserve">
+    <value>Si necesita ayuda, responda al email del recibo o escríbanos a través de golapr.com.</value>
+  </data>
+  <data name="Success_MissingSession" xml:space="preserve">
+    <value>Falta el parámetro session_id en la URL.</value>
+  </data>
+  <data name="Item_Default" xml:space="preserve">
+    <value>Artículo</value>
+  </data>
+  <data name="Item_Payment" xml:space="preserve">
+    <value>Pago</value>
+  </data>
+  <data name="Cancel_Title" xml:space="preserve">
+    <value>Pago cancelado</value>
+  </data>
+  <data name="Cancel_Body" xml:space="preserve">
+    <value>No se le cobró nada. Salió del Checkout o canceló el pago.</value>
+  </data>
+  <data name="Cancel_JustCancelled" xml:space="preserve">
+    <value>La orden fue cancelada.</value>
+  </data>
+  <data name="Cancel_AlreadyCancelled" xml:space="preserve">
+    <value>Esta orden ya estaba cancelada.</value>
+  </data>
+  <data name="Cancel_AlreadyPaid" xml:space="preserve">
+    <value>Esta orden ya figura como pagada (no se modificó).</value>
+  </data>
+  <data name="Cancel_StillPending" xml:space="preserve">
+    <value>La orden sigue pendiente; si la sesión de Stripe expira, se marcará como expirada.</value>
+  </data>
+  <data name="Cancel_NotFound" xml:space="preserve">
+    <value>No encontramos una orden para esta sesión.</value>
+  </data>
+  <data name="Cancel_Error" xml:space="preserve">
+    <value>No se pudo actualizar la orden.</value>
+  </data>
+  <data name="Cancel_TryAgain" xml:space="preserve">
+    <value>Intentar de nuevo</value>
+  </data>
+  <data name="Email_Subject" xml:space="preserve">
+    <value>Recibo de pago - {0} - Orden #{1}</value>
+  </data>
+  <data name="Email_Greeting" xml:space="preserve">
+    <value>Hola, gracias por su pago. Este es su recibo.</value>
+  </data>
+  <data name="Email_GreetingName" xml:space="preserve">
+    <value>Hola {0}, gracias por su pago. Este es su recibo.</value>
+  </data>
+  <data name="Email_ViewReceipt" xml:space="preserve">
+    <value>Ver / descargar recibo</value>
+  </data>
+  <data name="Email_ThankYou" xml:space="preserve">
+    <value>Gracias por su pago.</value>
+  </data>
+</root>
